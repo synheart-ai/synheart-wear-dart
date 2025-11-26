@@ -16,6 +16,7 @@ dependencies:
   encrypt: ^5.0.1
   http: ^1.2.0
   url_launcher: ^6.3.0
+  shared_preferences: ^2.2.2
   # Platform bridges (add as needed)
   # health: ^9.0.0
   # google_fit: any

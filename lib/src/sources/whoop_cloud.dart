@@ -1,359 +1,297 @@
-/// WHOOP Cloud Provider for Synheart Wear SDK
-/// 
-/// Connects to WHOOP cloud API via backend connector service.
-/// Implements OAuth flow and data fetching per RFC-0002.
-
-import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/models.dart';
-import '../core/local_cache.dart';
-
-/// WHOOP Cloud Provider for accessing WHOOP data via backend service
 class WhoopProvider {
-  final String baseUrl;
-  final String? redirectUri;
-  String? _accessToken;
-  String? _userId;
+  // Storage keys
+  static const String _userIdKey = 'whoop_user_id';
+  static const String _baseUrlKey = 'sdk_base_url';
+  static const String _appIdKey = 'sdk_app_id';
+  static const String _redirectUriKey = 'sdk_redirect_uri';
+
+  // Default values
+  static const String defaultBaseUrl =
+      'https://synheart-wear-service-leatest.onrender.com';
+  static const String defaultRedirectUri = 'synheart://oauth/callback';
+
+  String baseUrl;
+  String? redirectUri;
+  String appId; // REQUIRED
+  String? userId;
 
   WhoopProvider({
-    this.baseUrl = 'https://api.wear.synheart.io',
-    this.redirectUri,
-  });
+    String? baseUrl,
+    String? appId,
+    String? redirectUri,
+    this.userId,
+    bool loadFromStorage = true,
+  })  : baseUrl = baseUrl ?? defaultBaseUrl,
+        appId = appId ?? 'app-123',
+        redirectUri = redirectUri ?? defaultRedirectUri {
+    if (loadFromStorage) {
+      _loadFromStorage();
+    }
+  }
 
-  /// Launch OAuth consent flow
-  /// 
-  /// Opens browser/mobile app for user authorization
-  Future<void> connect(BuildContext context) async {
-    final state = _userId ?? DateTime.now().millisecondsSinceEpoch.toString();
-    final redirectUri = this.redirectUri ?? 'synheart://oauth/callback';
-    
-    // Get authorization URL from backend
-    final authUrlResponse = await http.get(
-      Uri.parse('$baseUrl/v1/whoop-cloud/oauth/authorize')
-          .replace(queryParameters: {
+  /// Load configuration and userId from local storage
+  Future<void> _loadFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Load configuration
+      final savedBaseUrl = prefs.getString(_baseUrlKey);
+      final savedAppId = prefs.getString(_appIdKey);
+      final savedRedirectUri = prefs.getString(_redirectUriKey);
+
+      if (savedBaseUrl != null) baseUrl = savedBaseUrl;
+      if (savedAppId != null) appId = savedAppId;
+      if (savedRedirectUri != null) redirectUri = savedRedirectUri;
+
+      // Load userId
+      final savedUserId = prefs.getString(_userIdKey);
+      if (savedUserId != null) userId = savedUserId;
+    } catch (e) {
+      // Silently fail - use provided/default values
+    }
+  }
+
+  /// Save userId to local storage
+  Future<void> saveUserId(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_userIdKey, userId);
+      this.userId = userId;
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  /// Load userId from local storage
+  Future<String?> loadUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedUserId = prefs.getString(_userIdKey);
+      if (savedUserId != null) {
+        userId = savedUserId;
+        return savedUserId;
+      }
+    } catch (e) {
+      // Silently fail
+    }
+    return null;
+  }
+
+  /// Clear userId from local storage
+  Future<void> clearUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_userIdKey);
+      userId = null;
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  /// Save configuration to local storage
+  Future<void> saveConfiguration({
+    String? baseUrl,
+    String? appId,
+    String? redirectUri,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      if (baseUrl != null) {
+        await prefs.setString(_baseUrlKey, baseUrl);
+        this.baseUrl = baseUrl;
+      }
+
+      if (appId != null) {
+        await prefs.setString(_appIdKey, appId);
+        this.appId = appId;
+      }
+
+      if (redirectUri != null) {
+        await prefs.setString(_redirectUriKey, redirectUri);
+        this.redirectUri = redirectUri;
+      }
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  /// Load configuration from local storage
+  Future<Map<String, String?>> loadConfiguration() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return {
+        'baseUrl': prefs.getString(_baseUrlKey),
+        'appId': prefs.getString(_appIdKey),
+        'redirectUri': prefs.getString(_redirectUriKey),
+      };
+    } catch (e) {
+      return {};
+    }
+  }
+
+  /// Reload configuration and userId from storage
+  Future<void> reloadFromStorage() async {
+    await _loadFromStorage();
+  }
+
+  /// Generate a random state string for OAuth
+  String _generateState([int length = 8]) {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final rand = Random.secure();
+    return List.generate(length, (_) => chars[rand.nextInt(chars.length)])
+        .join();
+  }
+
+  // 1. Get authorization URL
+  // REPLACE the old getAuthorizationUrl with this one
+  Future<String> getRealWhoopLoginUrl(String state) async {
+    final serviceUrl = Uri.parse('$baseUrl/v1/whoop/oauth/authorize').replace(
+      queryParameters: {
+        'app_id': appId,
         'redirect_uri': redirectUri,
         'state': state,
+      },
+    );
+
+    final response = await http.get(serviceUrl);
+    print('response: ${response.body}');
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get WHOOP login URL: ${response.body}');
+    }
+
+    final json = jsonDecode(response.body);
+    final String whoopUrl = json['authorization_url'];
+
+    if (whoopUrl.isEmpty) {
+      throw Exception('authorization_url is missing in response');
+    }
+
+    return whoopUrl; // This is the REAL https://api.prod.whoop.com/... URL
+  }
+
+  /// Start OAuth flow: generate state, get URL, and launch browser
+  /// Returns the generated state string for tracking the OAuth callback
+  Future<String> startOAuthFlow() async {
+    final state = _generateState();
+    final realWhoopUrl = await getRealWhoopLoginUrl(state);
+
+    final launched = await launchUrl(
+      Uri.parse(realWhoopUrl),
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched) {
+      throw Exception('Cannot open browser');
+    }
+
+    return state;
+  }
+
+  // 2. Exchange code – CORRECT ENDPOINT
+  Future<String> connectWithCode({
+    required String code,
+    required String state,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/v1/whoop/oauth/callback'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        "code": code,
+        "state": state,
+        "redirect_uri": redirectUri,
       }),
     );
 
-    if (authUrlResponse.statusCode != 200) {
-      throw NetworkError('Failed to get authorization URL: ${authUrlResponse.body}');
+    if (response.statusCode != 200) {
+      throw Exception("OAuth callback failed: ${response.body}");
     }
 
-    final authData = json.decode(authUrlResponse.body);
-    final authorizationUrl = authData['authorization_url'] as String;
+    final json = jsonDecode(response.body);
+    final userId = json['user_id'];
 
-    // Launch OAuth flow
-    final uri = Uri.parse(authorizationUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      
-      // Wait for callback (in real app, handle deep link)
-      // For now, return - actual implementation would use deep link handler
-      await _handleOAuthCallback(context, state, redirectUri);
-    } else {
-      throw NetworkError('Cannot launch OAuth URL: $authorizationUrl');
+    if (userId == null) {
+      throw Exception("Missing user_id in callback response");
     }
+
+    return userId;
   }
 
-  /// Handle OAuth callback (called after user authorizes)
-  Future<void> _handleOAuthCallback(
-    BuildContext context,
-    String state,
-    String redirectUri,
-  ) async {
-    // In production, this would be called from deep link handler
-    // For now, this is a placeholder that shows the flow
-    // The actual callback would contain code from OAuth redirect
-    
-    // Example: If callback URL is synheart://oauth/callback?code=XXX&state=YYY
-    // You would parse the code and exchange it here
-  }
-
-  /// Connect with authorization code (for handling OAuth callback)
-  Future<void> connectWithCode(String code, String state, String redirectUri) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/v1/whoop-cloud/oauth/callback'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'code': code,
-          'state': state,
-          'redirect_uri': redirectUri,
-          'vendor': 'whoop',
-        }),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
-        _userId = data['user_id'] as String?;
-        // Store connection status (access token stored securely on backend)
-        await _saveConnectionStatus(_userId ?? state);
-      } else {
-        final error = json.decode(response.body);
-        throw NetworkError(
-          'OAuth exchange failed: ${error['error']?['message'] ?? response.body}',
-        );
-      }
-    } catch (e) {
-      if (e is NetworkError) rethrow;
-      throw NetworkError('Failed to connect: $e');
-    }
-  }
-
-  /// Fetch recovery data collection
-  /// 
-  /// Fetches recovery records from backend
+  // 3. Fetch methods – CORRECT PATH + app_id in query
   Future<Map<String, dynamic>> fetchRecovery({
+    required String userId,
     DateTime? start,
     DateTime? end,
-    int limit = 25,
-  }) async {
-    if (_userId == null) {
-      throw SynheartWearError('Not connected. Call connect() first.');
-    }
+    int limit = 100,
+    String? cursor,
+  }) =>
+      _fetch('recovery', userId, start, end, limit, cursor);
 
-    try {
-      final queryParams = <String, String>{
-        'limit': limit.toString(),
-      };
-      if (start != null) {
-        queryParams['start'] = start.toIso8601String();
-      }
-      if (end != null) {
-        queryParams['end'] = end.toIso8601String();
-      }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/v1/data/$_userId/recovery')
-            .replace(queryParameters: queryParams),
-        headers: {
-          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else {
-        throw NetworkError('Failed to fetch recovery: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (e is NetworkError || e is SynheartWearError) rethrow;
-      throw NetworkError('Failed to fetch recovery data: $e');
-    }
-  }
-
-  /// Fetch sleep data collection
   Future<Map<String, dynamic>> fetchSleep({
+    required String userId,
     DateTime? start,
     DateTime? end,
-    int limit = 25,
-  }) async {
-    if (_userId == null) {
-      throw SynheartWearError('Not connected. Call connect() first.');
-    }
+    int limit = 100,
+    String? cursor,
+  }) =>
+      _fetch('sleep', userId, start, end, limit, cursor);
 
-    try {
-      final queryParams = <String, String>{
-        'limit': limit.toString(),
-      };
-      if (start != null) {
-        queryParams['start'] = start.toIso8601String();
-      }
-      if (end != null) {
-        queryParams['end'] = end.toIso8601String();
-      }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/v1/data/$_userId/sleep')
-            .replace(queryParameters: queryParams),
-        headers: {
-          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else {
-        throw NetworkError('Failed to fetch sleep: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (e is NetworkError || e is SynheartWearError) rethrow;
-      throw NetworkError('Failed to fetch sleep data: $e');
-    }
-  }
-
-  /// Fetch workout data collection
   Future<Map<String, dynamic>> fetchWorkouts({
+    required String userId,
     DateTime? start,
     DateTime? end,
-    int limit = 25,
-  }) async {
-    if (_userId == null) {
-      throw SynheartWearError('Not connected. Call connect() first.');
-    }
+    int limit = 100,
+    String? cursor,
+  }) =>
+      _fetch('workouts', userId, start, end, limit, cursor);
 
-    try {
-      final queryParams = <String, String>{
-        'limit': limit.toString(),
-      };
-      if (start != null) {
-        queryParams['start'] = start.toIso8601String();
-      }
-      if (end != null) {
-        queryParams['end'] = end.toIso8601String();
-      }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/v1/data/$_userId/workouts')
-            .replace(queryParameters: queryParams),
-        headers: {
-          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else {
-        throw NetworkError('Failed to fetch workouts: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (e is NetworkError || e is SynheartWearError) rethrow;
-      throw NetworkError('Failed to fetch workout data: $e');
-    }
-  }
-
-  /// Fetch cycle data collection
   Future<Map<String, dynamic>> fetchCycles({
+    required String userId,
     DateTime? start,
     DateTime? end,
-    int limit = 25,
-  }) async {
-    if (_userId == null) {
-      throw SynheartWearError('Not connected. Call connect() first.');
-    }
+    int limit = 100,
+    String? cursor,
+  }) =>
+      _fetch('cycles', userId, start, end, limit, cursor);
 
-    try {
-      final queryParams = <String, String>{
-        'limit': limit.toString(),
-      };
-      if (start != null) {
-        queryParams['start'] = start.toIso8601String();
-      }
-      if (end != null) {
-        queryParams['end'] = end.toIso8601String();
-      }
+  Future<Map<String, dynamic>> _fetch(
+    String type,
+    String userId,
+    DateTime? start,
+    DateTime? end,
+    int limit,
+    String? cursor,
+  ) async {
+    final params = {
+      'app_id': appId,
+      if (start != null) 'start': start.toUtc().toIso8601String(),
+      if (end != null) 'end': end.toUtc().toIso8601String(),
+      'limit': limit.toString(),
+      if (cursor != null) 'cursor': cursor,
+    };
 
-      final response = await http.get(
-        Uri.parse('$baseUrl/v1/data/$_userId/cycles')
-            .replace(queryParameters: queryParams),
-        headers: {
-          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else {
-        throw NetworkError('Failed to fetch cycles: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (e is NetworkError || e is SynheartWearError) rethrow;
-      throw NetworkError('Failed to fetch cycle data: $e');
-    }
+    final uri = Uri.parse('$baseUrl/v1/whoop/data/$userId/$type')
+        .replace(queryParameters: params);
+    print('uri: $uri');
+    final res = await http.get(uri);
+    print('res: ${res.body}');
+    if (res.statusCode != 200) throw Exception(res.body);
+    return jsonDecode(res.body);
   }
 
-  /// Fetch recovery data for a specific ID
-  Future<WearMetrics?> fetchRecoveryById(String recoveryId) async {
-    if (_userId == null) {
-      throw SynheartWearError('Not connected. Call connect() first.');
-    }
-
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/v1/whoop-cloud/data/$_userId/recovery/$recoveryId'),
-        headers: {
-          if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return WearMetrics.fromJson(data as Map<String, Object?>);
-      } else if (response.statusCode == 404) {
-        return null;
-      } else {
-        throw NetworkError('Failed to fetch recovery: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (e is NetworkError || e is SynheartWearError) rethrow;
-      throw NetworkError('Failed to fetch recovery: $e');
-    }
-  }
-
-  /// Disconnect WHOOP integration
-  Future<void> disconnect() async {
-    if (_userId == null) return;
-
-    try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/v1/whoop-cloud/oauth/disconnect').replace(
-          queryParameters: {
-            'user_id': _userId!,
-            'vendor': 'whoop',
-          },
-        ),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        _userId = null;
-        _accessToken = null;
-        await _clearConnectionStatus();
-      } else {
-        throw NetworkError('Failed to disconnect: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (e is NetworkError) rethrow;
-      throw NetworkError('Failed to disconnect: $e');
-    }
-  }
-
-  /// Check if user is connected
-  bool get isConnected => _userId != null;
-
-  /// Get current user ID
-  String? get userId => _userId;
-  
-  /// Set user ID directly (for testing when tokens already exist)
-  void setUserId(String userId) {
-    _userId = userId;
-  }
-
-  /// Save connection status locally
-  Future<void> _saveConnectionStatus(String userId) async {
-    // Store connection status (simplified - in production, use secure storage)
-    await LocalCache.storeMetadata({
-      'whoop_user_id': userId,
-      'whoop_connected_at': DateTime.now().toIso8601String(),
-    });
-  }
-
-  /// Clear connection status
-  Future<void> _clearConnectionStatus() async {
-    await LocalCache.storeMetadata({
-      'whoop_user_id': null,
-      'whoop_connected_at': null,
-    });
-  }
-
-  /// Restore connection status from cache
-  Future<void> restoreConnection() async {
-    final metadata = await LocalCache.getMetadata();
-    _userId = metadata['whoop_user_id'] as String?;
+  // 4. Disconnect
+  Future<void> disconnect(String userId) async {
+    final uri = Uri.parse('$baseUrl/v1/whoop/oauth/disconnect').replace(
+      queryParameters: {'user_id': userId, 'app_id': appId},
+    );
+    final res = await http.delete(uri);
+    if (res.statusCode != 200) throw Exception(res.body);
   }
 }
-

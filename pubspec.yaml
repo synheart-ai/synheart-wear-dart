@@ -25,8 +25,11 @@ dev_dependencies:
     sdk: flutter
   very_good_analysis: ^6.0.0
 flutter:
-  # This package exposes an optional iOS plugin to fetch heartbeat series (RR)
+  # This package exposes platform plugins for iOS (HealthKit RR) and Android (Health Connect helpers)
   plugin:
     platforms:
       ios:
+        pluginClass: SynheartWearPlugin
+      android:
+        package: com.synheart.wear
         pluginClass: SynheartWearPlugin

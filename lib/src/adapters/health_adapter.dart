@@ -1,8 +1,10 @@
 import 'package:health/health.dart';
 import '../core/consent_manager.dart';
 import '../core/models.dart';
+import 'dart:io'; // Add this import
 
-/// Adapter for the health package to handle HealthKit integration
+/// Adapter for the health package to handle HealthKit and Health Connect integration
+/// Supports health package v13.2.1 API
 class HealthAdapter {
   static final Health _health = Health();
   static bool _configured = false;
@@ -10,8 +12,13 @@ class HealthAdapter {
   /// Configure the health package (required before any operations)
   static Future<void> _ensureConfigured() async {
     if (!_configured) {
-      await _health.configure();
-      _configured = true;
+      try {
+        await _health.configure();
+        _configured = true;
+      } catch (e) {
+        print('Health package configuration error: $e');
+        rethrow;
+      }
     }
   }
 
@@ -25,13 +32,25 @@ class HealthAdapter {
           healthTypes.add(HealthDataType.HEART_RATE);
           break;
         case PermissionType.heartRateVariability:
-          healthTypes.add(HealthDataType.HEART_RATE_VARIABILITY_SDNN);
+          // Use platform-specific HRV types
+          if (Platform.isAndroid) {
+            healthTypes.add(HealthDataType.HEART_RATE_VARIABILITY_RMSSD);
+          } else {
+            healthTypes.add(HealthDataType.HEART_RATE_VARIABILITY_SDNN);
+          }
           break;
         case PermissionType.steps:
           healthTypes.add(HealthDataType.STEPS);
           break;
         case PermissionType.calories:
           healthTypes.add(HealthDataType.ACTIVE_ENERGY_BURNED);
+          break;
+        case PermissionType.distance:
+          // DISTANCE_WALKING_RUNNING is only supported on iOS HealthKit
+          // Health Connect on Android doesn't support this data type
+          if (!Platform.isAndroid) {
+            healthTypes.add(HealthDataType.DISTANCE_WALKING_RUNNING);
+          }
           break;
         case PermissionType.sleep:
           healthTypes.add(HealthDataType.SLEEP_IN_BED);
@@ -44,9 +63,13 @@ class HealthAdapter {
           // Request all available types
           healthTypes.addAll([
             HealthDataType.HEART_RATE,
-            HealthDataType.HEART_RATE_VARIABILITY_SDNN,
+            Platform.isAndroid
+                ? HealthDataType.HEART_RATE_VARIABILITY_RMSSD
+                : HealthDataType.HEART_RATE_VARIABILITY_SDNN,
             HealthDataType.STEPS,
             HealthDataType.ACTIVE_ENERGY_BURNED,
+            if (!Platform.isAndroid)
+              HealthDataType.DISTANCE_WALKING_RUNNING, // iOS only
             HealthDataType.SLEEP_IN_BED,
           ]);
           break;
@@ -57,27 +80,49 @@ class HealthAdapter {
   }
 
   /// Request permissions using health package (v13.2.1 API)
+  /// Optionally specify READ or READ_WRITE access for each type
   static Future<bool> requestPermissions(
-      Set<PermissionType> permissions) async {
+    Set<PermissionType> permissions, {
+    List<HealthDataAccess>? accessLevels,
+  }) async {
     final healthTypes = mapPermissions(permissions);
     if (healthTypes.isEmpty) return false;
 
     try {
       await _ensureConfigured();
-      return await _health.requestAuthorization(healthTypes);
+
+      // If access levels are provided, use them; otherwise default to READ_WRITE
+      if (accessLevels != null && accessLevels.length == healthTypes.length) {
+        return await _health.requestAuthorization(
+          healthTypes,
+          permissions: accessLevels,
+        );
+      } else {
+        // Default to READ_WRITE for all types
+        final defaultPermissions = List<HealthDataAccess>.filled(
+          healthTypes.length,
+          HealthDataAccess.READ_WRITE,
+        );
+        return await _health.requestAuthorization(
+          healthTypes,
+          permissions: defaultPermissions,
+        );
+      }
     } catch (e) {
       print('Health permission request error: $e');
       return false;
     }
   }
 
-  /// Check if health data is available
+  /// Check if health data is available on the platform
+  /// Returns true if HealthKit (iOS) or Health Connect (Android) is available
   static Future<bool> isAvailable() async {
     try {
       await _ensureConfigured();
-      // For now, assume health data is available if we can configure
+      // The health package will throw if not available, so if we get here, it's available
       return true;
     } catch (e) {
+      print('Health data not available: $e');
       return false;
     }
   }
@@ -106,6 +151,8 @@ class HealthAdapter {
       return data;
     } catch (e) {
       print('Health data read error: $e');
+      // Re-throw to allow callers to handle specific errors
+      // Return empty list for graceful degradation
       return [];
     }
   }
@@ -123,68 +170,123 @@ class HealthAdapter {
     final metricTimestamps =
         <String, DateTime>{}; // Track individual metric timestamps
 
-    // Find the most recent data point for each metric type
-    // This ensures we get the latest available value for each metric
-    final Map<HealthDataType, HealthDataPoint> mostRecentByType = {};
+    // Accumulators for summing metrics over the time period
+    double stepsSum = 0.0;
+    double caloriesSum = 0.0;
+    double distanceSum = 0.0; // in meters
+    double sleepHoursSum = 0.0;
 
+    // Accumulators for averaging HR and HRV
+    double hrSum = 0.0;
+    int hrCount = 0;
+    double hrvSum = 0.0;
+    int hrvCount = 0;
+    HealthDataType? hrvType; // Track which HRV type we're averaging
+    DateTime? latestTimestamp;
+
+    // Process all data points to sum/add values
     for (final point in dataPoints) {
-      if (!mostRecentByType.containsKey(point.type) ||
-          point.dateTo.isAfter(mostRecentByType[point.type]!.dateTo)) {
-        mostRecentByType[point.type] = point;
+      // Track the latest timestamp overall
+      if (latestTimestamp == null || point.dateTo.isAfter(latestTimestamp)) {
+        latestTimestamp = point.dateTo;
       }
-    }
 
-    // Get the most recent data point overall for main timestamp
-    final latestPoint = mostRecentByType.values.isEmpty
-        ? dataPoints.first
-        : mostRecentByType.values.reduce(
-            (a, b) => a.dateTo.isAfter(b.dateTo) ? a : b,
-          );
+      if (point.value is! NumericHealthValue) continue;
 
-    // Process the most recent data point for each metric type
-    for (final point in mostRecentByType.values) {
+      final value = (point.value as NumericHealthValue).numericValue;
+
       switch (point.type) {
         case HealthDataType.HEART_RATE:
-          if (point.value is NumericHealthValue) {
-            metrics['hr'] = (point.value as NumericHealthValue).numericValue;
-            metricTimestamps['hr'] = point.dateTo;
-          }
+          // Sum all heart rate values for averaging
+          hrSum += value;
+          hrCount++;
           break;
         case HealthDataType.HEART_RATE_VARIABILITY_SDNN:
-          if (point.value is NumericHealthValue) {
-            metrics['hrv_rmssd'] =
-                (point.value as NumericHealthValue).numericValue;
-            metricTimestamps['hrv_rmssd'] = point.dateTo;
+        case HealthDataType.HEART_RATE_VARIABILITY_RMSSD:
+          // Sum all HRV values for averaging
+          hrvSum += value;
+          hrvCount++;
+          // Track the HRV type (use the first one encountered, or prefer RMSSD)
+          if (hrvType == null) {
+            hrvType = point.type;
+          } else if (point.type ==
+              HealthDataType.HEART_RATE_VARIABILITY_RMSSD) {
+            hrvType = point.type; // Prefer RMSSD if available
           }
           break;
         case HealthDataType.STEPS:
-          if (point.value is NumericHealthValue) {
-            metrics['steps'] = (point.value as NumericHealthValue).numericValue;
-            metricTimestamps['steps'] = point.dateTo;
-          }
+          // Sum all steps
+          stepsSum += value;
           break;
         case HealthDataType.ACTIVE_ENERGY_BURNED:
-          if (point.value is NumericHealthValue) {
-            metrics['calories'] =
-                (point.value as NumericHealthValue).numericValue;
-            metricTimestamps['calories'] = point.dateTo;
-          }
+          // Sum all calories
+          caloriesSum += value;
+          break;
+        case HealthDataType.DISTANCE_WALKING_RUNNING:
+          // Sum all distance (in meters)
+          distanceSum += value;
           break;
         case HealthDataType.SLEEP_IN_BED:
-          // Convert sleep duration to hours
+          // Sum sleep duration (convert to hours)
           final duration = point.dateTo.difference(point.dateFrom);
-          metrics['sleep_hours'] = duration.inMinutes / 60.0;
-          metricTimestamps['sleep_hours'] = point.dateTo;
+          sleepHoursSum += duration.inMinutes / 60.0;
           break;
         default:
           break;
       }
     }
 
+    // Set the summed metrics
+    if (stepsSum > 0) {
+      metrics['steps'] = stepsSum;
+      metricTimestamps['steps'] = latestTimestamp ?? DateTime.now();
+    }
+    if (caloriesSum > 0) {
+      metrics['calories'] = caloriesSum;
+      metricTimestamps['calories'] = latestTimestamp ?? DateTime.now();
+    }
+    if (distanceSum > 0) {
+      metrics['distance'] = distanceSum / 1000.0; // Convert meters to km
+      metricTimestamps['distance'] = latestTimestamp ?? DateTime.now();
+    }
+    if (sleepHoursSum > 0) {
+      metrics['sleep_hours'] = sleepHoursSum;
+      metricTimestamps['sleep_hours'] = latestTimestamp ?? DateTime.now();
+    }
+
+    // Set the averaged heart rate
+    if (hrCount > 0) {
+      final avgHR = hrSum / hrCount;
+      metrics['hr'] = avgHR;
+      metricTimestamps['hr'] = latestTimestamp ?? DateTime.now();
+    }
+
+    // Set the averaged HRV
+    if (hrvCount > 0 && hrvType != null) {
+      final avgHRV = hrvSum / hrvCount;
+      if (hrvType == HealthDataType.HEART_RATE_VARIABILITY_RMSSD) {
+        metrics['hrv_rmssd'] = avgHRV;
+        metrics['hrv_sdnn'] = avgHRV; // Also store as SDNN for compatibility
+        metricTimestamps['hrv_rmssd'] = latestTimestamp ?? DateTime.now();
+        metricTimestamps['hrv_sdnn'] = latestTimestamp ?? DateTime.now();
+      } else {
+        metrics['hrv_sdnn'] = avgHRV;
+        metrics['hrv_rmssd'] = avgHRV; // Also store as RMSSD for compatibility
+        metricTimestamps['hrv_sdnn'] = latestTimestamp ?? DateTime.now();
+        metricTimestamps['hrv_rmssd'] = latestTimestamp ?? DateTime.now();
+      }
+    }
+
+    // Get the most recent data point overall for main timestamp
+    final latestPoint = latestTimestamp ?? dataPoints.first.dateTo;
+
     // Add metadata
     meta['source'] = source ?? 'health_package';
     meta['data_points_count'] = dataPoints.length;
-    meta['data_points_filtered'] = mostRecentByType.length;
+    meta['summed'] = true; // Steps, calories, distance, sleep are summed
+    meta['averaged'] = true; // HR and HRV are averaged
+    if (hrCount > 0) meta['hr_data_points'] = hrCount;
+    if (hrvCount > 0) meta['hrv_data_points'] = hrvCount;
     meta['synced'] = true;
     // Store individual metric timestamps in metadata
     meta['metric_timestamps'] = metricTimestamps.map(
@@ -192,7 +294,7 @@ class HealthAdapter {
     );
 
     return WearMetrics(
-      timestamp: latestPoint.dateTo,
+      timestamp: latestPoint,
       deviceId: deviceId ?? 'health_${DateTime.now().millisecondsSinceEpoch}',
       source: source ?? 'health_package',
       metrics: metrics,
@@ -201,24 +303,43 @@ class HealthAdapter {
   }
 
   /// Get permission status for specific types (v13.2.1 feature)
+  /// Returns a map of permission types to their granted status
   static Future<Map<PermissionType, bool>> getPermissionStatus(
     Set<PermissionType> permissions,
   ) async {
-    final healthTypes = mapPermissions(permissions);
     final results = <PermissionType, bool>{};
 
     try {
       await _ensureConfigured();
 
-      for (int i = 0; i < permissions.length; i++) {
-        final permission = permissions.elementAt(i);
-        final healthType = healthTypes[i];
+      // Create a map of permission to health type for accurate checking
+      final permissionToHealthType = <PermissionType, HealthDataType>{};
+      for (final permission in permissions) {
+        final healthTypes = mapPermissions({permission});
+        if (healthTypes.isNotEmpty) {
+          permissionToHealthType[permission] = healthTypes.first;
+        }
+      }
 
-        // Use hasPermissions method from health package
-        final hasPermission = await _health.hasPermissions([healthType]);
-        results[permission] = hasPermission ?? false;
+      // Check permissions for each mapped type
+      for (final entry in permissionToHealthType.entries) {
+        try {
+          final hasPermission = await _health.hasPermissions([entry.value]);
+          results[entry.key] = hasPermission ?? false;
+        } catch (e) {
+          print('Error checking permission for ${entry.key}: $e');
+          results[entry.key] = false;
+        }
+      }
+
+      // Mark unmapped permissions (like stress) as false
+      for (final permission in permissions) {
+        if (!results.containsKey(permission)) {
+          results[permission] = false;
+        }
       }
     } catch (e) {
+      print('Error getting permission status: $e');
       // Mark all as false on error
       for (final permission in permissions) {
         results[permission] = false;

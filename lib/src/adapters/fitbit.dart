@@ -14,6 +14,12 @@ class FitbitAdapter implements WearAdapter {
       };
 
   @override
+  Set<PermissionType> getPlatformSupportedPermissions() {
+    // Fitbit supports all its declared permissions on all platforms
+    return supportedPermissions;
+  }
+
+  @override
   Future<void> ensurePermissions() async {
     // TODO: OAuth and scopes.
   }

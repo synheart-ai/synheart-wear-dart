@@ -85,6 +85,12 @@ class MockWearAdapter implements WearAdapter {
       metrics: {'hr': 75},
     );
   }
+  
+  @override
+  Set<PermissionType> getPlatformSupportedPermissions() {
+    // TODO: implement getPlatformSupportedPermissions
+    throw UnimplementedError();
+  }
 }
 
 // Failing adapter for error testing
@@ -100,6 +106,12 @@ class FailingWearAdapter implements WearAdapter {
 
   @override
   Future<WearMetrics?> readSnapshot({bool isRealTime = false}) {
+    throw UnimplementedError();
+  }
+  
+  @override
+  Set<PermissionType> getPlatformSupportedPermissions() {
+    // TODO: implement getPlatformSupportedPermissions
     throw UnimplementedError();
   }
 }

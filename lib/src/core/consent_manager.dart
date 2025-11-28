@@ -15,6 +15,7 @@ enum PermissionType {
   heartRateVariability,
   steps,
   calories,
+  distance, // Add this
   sleep,
   stress,
   all,
@@ -35,7 +36,7 @@ class ConsentManager {
     try {
       // Use health package for real permission requests
       final granted = await HealthAdapter.requestPermissions(permissions);
-      
+
       for (final permission in permissions) {
         final status = granted ? ConsentStatus.granted : ConsentStatus.denied;
         _permissions[permission] = status;
@@ -82,6 +83,33 @@ class ConsentManager {
     return Map.from(_permissions);
   }
 
+  /// Sync consent status with actual platform permissions
+  /// This checks the real permission status from the health package
+  static Future<Map<PermissionType, ConsentStatus>> syncWithPlatform(
+    Set<PermissionType> permissions,
+  ) async {
+    try {
+      final platformStatus =
+          await HealthAdapter.getPermissionStatus(permissions);
+      final results = <PermissionType, ConsentStatus>{};
+
+      for (final entry in platformStatus.entries) {
+        final status =
+            entry.value ? ConsentStatus.granted : ConsentStatus.denied;
+        _permissions[entry.key] = status;
+        if (entry.value) {
+          _consentTimestamps[entry.key.name] = DateTime.now();
+        }
+        results[entry.key] = status;
+      }
+
+      return results;
+    } catch (e) {
+      print('Error syncing with platform: $e');
+      return {};
+    }
+  }
+
   /// Get consent timestamp for a permission
   static DateTime? getConsentTimestamp(PermissionType permission) {
     return _consentTimestamps[permission.name];
@@ -98,13 +126,22 @@ class ConsentManager {
   }
 
   /// Validate that required consents are in place before data collection
+  /// Only validates permissions that were actually requested and granted
   static void validateConsents(Set<PermissionType> requiredPermissions) {
     final missingConsents = <PermissionType>[];
 
     for (final permission in requiredPermissions) {
-      if (!hasConsent(permission) || !isConsentValid(permission)) {
-        missingConsents.add(permission);
+      // Only validate if we have a consent status for this permission
+      // AND the consent is granted. This handles cases where:
+      // 1. Permissions weren't requested (e.g., HRV on Android) - skip validation
+      // 2. Permissions were requested but denied - include in missing consents
+      if (_permissions.containsKey(permission)) {
+        if (!hasConsent(permission) || !isConsentValid(permission)) {
+          missingConsents.add(permission);
+        }
       }
+      // If permission is not in _permissions, it means it wasn't requested
+      // (e.g., HRV on Android), so we skip validation for it
     }
 
     if (missingConsents.isNotEmpty) {

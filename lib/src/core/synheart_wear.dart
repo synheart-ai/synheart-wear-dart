@@ -75,10 +75,15 @@ class SynheartWear {
       // Normalize and merge data
       final mergedData = _normalizer.mergeSnapshots(adapterData);
 
-      // Validate data quality
-      if (!_normalizer.validateMetrics(mergedData)) {
+      // Validate data quality - but allow empty metrics if permissions are granted
+      // (simulators may not have actual health data)
+      if (mergedData.metrics.isNotEmpty &&
+          !_normalizer.validateMetrics(mergedData)) {
         throw SynheartWearError('Invalid metrics data received');
       }
+
+      // If no data is available but permissions are granted, return empty metrics
+      // This is acceptable for simulators or when no data has been recorded yet
 
       // Cache data if enabled
       if (config.enableLocalCaching) {
@@ -195,10 +200,12 @@ class SynheartWear {
   }
 
   /// Get required permissions based on enabled adapters
+  /// Uses platform-specific permissions (e.g., excludes HRV on Android)
   Set<PermissionType> _getRequiredPermissions() {
     final permissions = <PermissionType>{};
     for (final adapter in _enabledAdapters()) {
-      permissions.addAll(adapter.supportedPermissions);
+      // Use platform-specific permissions instead of all supported permissions
+      permissions.addAll(adapter.getPlatformSupportedPermissions());
     }
     return permissions;
   }

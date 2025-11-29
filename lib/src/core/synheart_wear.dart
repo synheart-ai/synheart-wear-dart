@@ -51,7 +51,11 @@ class SynheartWear {
   }
 
   /// Read current metrics from all enabled adapters
-  Future<WearMetrics> readMetrics({bool isRealTime = false}) async {
+  Future<WearMetrics> readMetrics({
+    bool isRealTime = false,
+    DateTime? startTime,
+    DateTime? endTime,
+  }) async {
     if (!_initialized) {
       await initialize();
     }
@@ -64,7 +68,11 @@ class SynheartWear {
       final adapterData = <WearMetrics?>[];
       for (final adapter in _enabledAdapters()) {
         try {
-          final data = await adapter.readSnapshot(isRealTime: isRealTime);
+          final data = await adapter.readSnapshot(
+            isRealTime: isRealTime,
+            startTime: startTime,
+            endTime: endTime,
+          );
           adapterData.add(data);
         } catch (e) {
           // Keep non-fatal, tag by adapter id

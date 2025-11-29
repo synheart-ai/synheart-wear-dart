@@ -65,17 +65,23 @@ class AppleHealthKitAdapter implements WearAdapter {
   }
 
   @override
-  Future<WearMetrics?> readSnapshot({bool isRealTime = true}) async {
+  Future<WearMetrics?> readSnapshot({
+    bool isRealTime = true,
+    DateTime? startTime,
+    DateTime? endTime,
+  }) async {
     try {
-      // Fetch data from the last 30 days to sum all values
-      final timeRange = const Duration(days: 30);
+      // Use provided time range or default to last 30 days
+      final effectiveStartTime =
+          startTime ?? DateTime.now().subtract(const Duration(days: 30));
+      final effectiveEndTime = endTime ?? DateTime.now();
 
       // Read data using health package
       // Use platform-specific permissions (exclude HRV on Android)
       final dataPoints = await HealthAdapter.readHealthData(
         _platformSupportedPermissions,
-        startTime: DateTime.now().subtract(timeRange),
-        endTime: DateTime.now(),
+        startTime: effectiveStartTime,
+        endTime: effectiveEndTime,
       );
 
       // Convert to WearMetrics

@@ -25,7 +25,11 @@ class FitbitAdapter implements WearAdapter {
   }
 
   @override
-  Future<WearMetrics?> readSnapshot({bool isRealTime = false}) async {
+  Future<WearMetrics?> readSnapshot({
+    bool isRealTime = false,
+    DateTime? startTime,
+    DateTime? endTime,
+  }) async {
     // TODO: Fitbit Web API call.
     return null; // if unavailable
   }

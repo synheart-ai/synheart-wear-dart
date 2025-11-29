@@ -13,5 +13,9 @@ abstract class WearAdapter {
   }
 
   Future<void> ensurePermissions();
-  Future<WearMetrics?> readSnapshot({bool isRealTime = true});
+  Future<WearMetrics?> readSnapshot({
+    bool isRealTime = true,
+    DateTime? startTime,
+    DateTime? endTime,
+  });
 }

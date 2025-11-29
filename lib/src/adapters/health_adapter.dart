@@ -223,8 +223,29 @@ class HealthAdapter {
           caloriesSum += value;
           break;
         case HealthDataType.DISTANCE_WALKING_RUNNING:
-          // Sum all distance (in meters)
-          distanceSum += value;
+          // Sum all distance
+          // HealthKit/Health Connect typically returns distance in meters
+          // But check the unit to be safe and convert if needed
+          num distanceInMeters = value;
+          final unit = point.unit.toString().toUpperCase();
+
+          // Convert to meters if needed
+          if (unit.contains('MILE') || unit.contains('MI')) {
+            // Convert miles to meters (1 mile = 1609.34 meters)
+            distanceInMeters = value * 1609.34;
+          } else if (unit.contains('KM') || unit.contains('KILOMETER')) {
+            // Convert km to meters
+            distanceInMeters = value * 1000.0;
+          } else if (unit.contains('FOOT') || unit.contains('FT')) {
+            // Convert feet to meters (1 foot = 0.3048 meters)
+            distanceInMeters = value * 0.3048;
+          } else if (unit.contains('YARD') || unit.contains('YD')) {
+            // Convert yards to meters (1 yard = 0.9144 meters)
+            distanceInMeters = value * 0.9144;
+          }
+          // If already in meters or METER, use as-is
+
+          distanceSum += distanceInMeters;
           break;
         case HealthDataType.SLEEP_IN_BED:
           // Sum sleep duration (convert to hours)
@@ -248,6 +269,17 @@ class HealthAdapter {
     if (distanceSum > 0) {
       metrics['distance'] = distanceSum / 1000.0; // Convert meters to km
       metricTimestamps['distance'] = latestTimestamp ?? DateTime.now();
+    } else if (Platform.isAndroid && stepsSum > 0) {
+      // On Android, Health Connect doesn't support DISTANCE_WALKING_RUNNING
+      // Estimate distance from steps (average step length ~0.762 meters for adults)
+      // This is an approximation and may not be accurate for all users
+      const averageStepLengthMeters = 0.762; // ~2.5 feet per step
+      final estimatedDistanceMeters = stepsSum * averageStepLengthMeters;
+      metrics['distance'] = estimatedDistanceMeters / 1000.0; // Convert to km
+      metricTimestamps['distance'] = latestTimestamp ?? DateTime.now();
+      // Add metadata to indicate this is an estimate
+      meta['distance_estimated'] = true;
+      meta['distance_estimation_method'] = 'steps_based';
     }
     if (sleepHoursSum > 0) {
       metrics['sleep_hours'] = sleepHoursSum;

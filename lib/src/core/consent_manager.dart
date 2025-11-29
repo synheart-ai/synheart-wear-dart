@@ -1,5 +1,6 @@
 import '../adapters/health_adapter.dart';
 import '../core/models.dart';
+import 'logger.dart';
 
 /// Consent status for data access
 enum ConsentStatus {
@@ -105,7 +106,7 @@ class ConsentManager {
 
       return results;
     } catch (e) {
-      print('Error syncing with platform: $e');
+      logError('Error syncing with platform', e);
       return {};
     }
   }

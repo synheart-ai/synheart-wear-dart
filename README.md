@@ -4,7 +4,7 @@
 [![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.22.0-blue.svg)](https://flutter.dev)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Unified wearable SDK** — Cross-device, cross-platform biometric data normalization with a single standardized output format. Stream HR, HRV, steps, calories, and stress signals from Apple Watch, Fitbit, Garmin, Whoop, and Samsung devices into your Flutter applications.
+**Unified wearable SDK** — Cross-device, cross-platform biometric data normalization with a single standardized output format. Stream HR, HRV, steps, calories, distance, and stress signals from Apple Watch, Fitbit, Garmin, Whoop, and Samsung devices into your Flutter applications.
 
 ## 🚀 Features
 
@@ -46,6 +46,7 @@ void main() async {
   final metrics = await synheart.readMetrics();
   print('Heart Rate: ${metrics.getMetric(MetricType.hr)}');
   print('Steps: ${metrics.getMetric(MetricType.steps)}');
+  print('Distance: ${metrics.getMetric(MetricType.distance)} km');
 }
 ```
 
@@ -96,6 +97,7 @@ All wearable data follows the **Synheart Data Schema v1.0**:
     "hrv_sdnn": 62,
     "steps": 1045,
     "calories": 120.4,
+    "distance": 2.5,
     "stress": 0.3
   },
   "meta": {
@@ -110,14 +112,32 @@ All wearable data follows the **Synheart Data Schema v1.0**:
 
 ### Core Methods
 
-| Method | Description |
-|--------|-------------|
-| `initialize()` | Request permissions & setup adapters |
-| `readMetrics()` | Get current biometric snapshot |
-| `streamHR()` | Stream real-time heart rate |
-| `streamHRV()` | Stream HRV in configurable windows |
-| `getCachedSessions()` | Retrieve cached wearable data |
-| `clearOldCache()` | Clean up old cached data |
+| Method                            | Description                                                         |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `initialize()`                    | Request permissions & setup adapters                                |
+| `readMetrics(startTime, endTime)` | Get current biometric snapshot or metrics for a specific time range |
+| `streamHR()`                      | Stream real-time heart rate                                         |
+| `streamHRV()`                     | Stream HRV in configurable windows                                  |
+| `getCachedSessions()`             | Retrieve cached wearable data                                       |
+| `clearOldCache()`                 | Clean up old cached data                                            |
+
+### Reading Metrics with Time Range
+
+```dart
+// Read metrics for today (from midnight to now)
+final now = DateTime.now();
+final startOfToday = DateTime(now.year, now.month, now.day);
+final metrics = await synheart.readMetrics(
+  startTime: startOfToday,
+  endTime: now,
+);
+
+// Read metrics for a specific date range
+final metrics = await synheart.readMetrics(
+  startTime: DateTime(2025, 1, 1),
+  endTime: DateTime(2025, 1, 31),
+);
+```
 
 ### Permission Management
 
@@ -152,13 +172,33 @@ await synheart.clearOldCache(maxAge: Duration(days: 30));
 
 ## ⌚ Supported Devices
 
-| Device | Platform | Integration | Status |
-|--------|----------|-------------|--------|
-| Apple Watch | iOS | HealthKit | ✅ Ready |
-| Fitbit | iOS/Android | REST API | 🔄 In Development |
-| Garmin | iOS/Android | Connect API | 📋 Planned |
-| Whoop | iOS/Android | REST API | 📋 Planned |
-| Samsung Watch | Android | Samsung Health | 📋 Planned |
+| Device         | Platform    | Integration        | Status            |
+| -------------- | ----------- | ------------------ | ----------------- |
+| Apple Watch    | iOS         | HealthKit          | ✅ Ready          |
+| Health Connect | Android     | Health Connect API | ✅ Ready          |
+| Fitbit         | iOS/Android | REST API           | 🔄 In Development |
+| Garmin         | iOS/Android | Connect API        | 🔄 In Development |
+| Whoop          | iOS/Android | REST API           | ✅ Ready          |
+| Samsung Watch  | Android     | Samsung Health     | 📋 Planned        |
+
+## ⚠️ Platform-Specific Limitations
+
+### Health Connect (Android)
+
+When using Health Connect on Android, certain data types have limitations:
+
+- **HRV (Heart Rate Variability)**: Health Connect supports `HRV_RMSSD` but not `HRV_SDNN`. The SDK automatically maps to the supported type.
+- **Distance**: `DISTANCE_WALKING_RUNNING` is not supported by Health Connect. This metric is only available on iOS via HealthKit.
+
+### HealthKit (iOS)
+
+iOS HealthKit supports all metrics including:
+
+- Heart Rate
+- HRV (SDNN)
+- Steps
+- Calories
+- Distance (walking/running)
 
 ## 🔒 Privacy & Security
 
@@ -207,11 +247,12 @@ import 'package:synheart_wear/synheart_wear.dart';
 void main() async {
   final synheart = SynheartWear();
   await synheart.initialize();
-  
+
   // Read metrics periodically
   final metrics = await synheart.readMetrics();
   print('Current HR: ${metrics.getMetric(MetricType.hr)}');
   print('Steps today: ${metrics.getMetric(MetricType.steps)}');
+  print('Distance: ${metrics.getMetric(MetricType.distance)} km');
 }
 ```
 
@@ -237,6 +278,7 @@ flutter test
 ```
 
 Tests cover:
+
 - Core SDK functionality
 - Data model serialization
 - Error handling scenarios
@@ -245,13 +287,13 @@ Tests cover:
 
 ## 📋 Roadmap
 
-| Version | Goal | Description |
-|---------|------|-------------|
-| v0.1 | Core SDK | ✅ Apple Watch + Fitbit integration |
-| v0.2 | Real-time streaming | 🔄 HRV, HR over BLE |
-| v0.3 | Extended device support | 📋 Garmin, Whoop, Samsung integration |
-| v0.4 | SWIP integration | 📋 Add impact measurement hooks |
-| v1.0 | Public Release | 📋 Open standard SDK and docs |
+| Version | Goal                    | Description                                 |
+| ------- | ----------------------- | ------------------------------------------- |
+| v0.1    | Core SDK                | ✅ Apple Watch + Fitbit integration         |
+| v0.2    | Real-time streaming     | 🔄 HRV, HR over BLE                         |
+| v0.3    | Extended device support | ✅ Whoop integration, 🔄 Garmin, 📋 Samsung |
+| v0.4    | SWIP integration        | 📋 Add impact measurement hooks             |
+| v1.0    | Public Release          | 📋 Open standard SDK and docs               |
 
 ## 🤝 Contributing
 
@@ -278,11 +320,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- **Israel Goytom** - *Initial work* - [@isrugeek](https://github.com/isrugeek)
-- **Synheart AI Team** - *RFC Design & Architecture*
+- **Israel Goytom** - _Initial work_ - [@isrugeek](https://github.com/isrugeek)
+- **Synheart AI Team** - _RFC Design & Architecture_
 
 ---
 
 **Made with ❤️ by the Synheart AI Team**
 
-*Technology with a heartbeat.*
+_Technology with a heartbeat._

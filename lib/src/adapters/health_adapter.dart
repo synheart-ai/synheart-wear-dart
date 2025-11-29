@@ -1,6 +1,7 @@
 import 'package:health/health.dart';
 import '../core/consent_manager.dart';
 import '../core/models.dart';
+import '../core/logger.dart';
 import 'dart:io'; // Add this import
 
 /// Adapter for the health package to handle HealthKit and Health Connect integration
@@ -16,7 +17,7 @@ class HealthAdapter {
         await _health.configure();
         _configured = true;
       } catch (e) {
-        print('Health package configuration error: $e');
+        logError('Health package configuration error', e);
         rethrow;
       }
     }
@@ -109,7 +110,7 @@ class HealthAdapter {
         );
       }
     } catch (e) {
-      print('Health permission request error: $e');
+      logError('Health permission request error', e);
       return false;
     }
   }
@@ -122,7 +123,7 @@ class HealthAdapter {
       // The health package will throw if not available, so if we get here, it's available
       return true;
     } catch (e) {
-      print('Health data not available: $e');
+      logDebug('Health data not available: $e');
       return false;
     }
   }
@@ -150,7 +151,7 @@ class HealthAdapter {
 
       return data;
     } catch (e) {
-      print('Health data read error: $e');
+      logError('Health data read error', e);
       // Re-throw to allow callers to handle specific errors
       // Return empty list for graceful degradation
       return [];
@@ -359,7 +360,7 @@ class HealthAdapter {
           final hasPermission = await _health.hasPermissions([entry.value]);
           results[entry.key] = hasPermission ?? false;
         } catch (e) {
-          print('Error checking permission for ${entry.key}: $e');
+          logWarning('Error checking permission for ${entry.key}', e);
           results[entry.key] = false;
         }
       }
@@ -371,7 +372,7 @@ class HealthAdapter {
         }
       }
     } catch (e) {
-      print('Error getting permission status: $e');
+      logError('Error getting permission status', e);
       // Mark all as false on error
       for (final permission in permissions) {
         results[permission] = false;

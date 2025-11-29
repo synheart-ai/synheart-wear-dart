@@ -111,14 +111,14 @@ class AppleHealthKitAdapter implements WearAdapter {
             }
           } catch (e) {
             // RR intervals are optional, continue without them
-            print('Could not fetch RR intervals: $e');
+            logger.debug('Could not fetch RR intervals: $e');
           }
         }
       }
 
       return metrics;
     } catch (e) {
-      print('HealthKit read error: $e');
+      logger.error('HealthKit read error', e);
       return null;
     }
   }

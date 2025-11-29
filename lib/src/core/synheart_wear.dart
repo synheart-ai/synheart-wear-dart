@@ -9,6 +9,7 @@ import '../adapters/fitbit.dart';
 import 'config.dart';
 import 'consent_manager.dart';
 import 'local_cache.dart';
+import 'logger.dart';
 
 /// Main SynheartWear SDK class implementing RFC specifications
 class SynheartWear {
@@ -76,7 +77,7 @@ class SynheartWear {
           adapterData.add(data);
         } catch (e) {
           // Keep non-fatal, tag by adapter id
-          print('${adapter.id} error: $e');
+          logWarning('${adapter.id} adapter error', e);
         }
       }
 

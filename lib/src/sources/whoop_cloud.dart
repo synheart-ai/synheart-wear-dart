@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/logger.dart';
 
 class WhoopProvider {
   // Storage keys
@@ -161,7 +162,7 @@ class WhoopProvider {
     );
 
     final response = await http.get(serviceUrl);
-    print('response: ${response.body}');
+    logDebug('WHOOP login response: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception('Failed to get WHOOP login URL: ${response.body}');
@@ -279,9 +280,9 @@ class WhoopProvider {
 
     final uri = Uri.parse('$baseUrl/v1/whoop/data/$userId/$type')
         .replace(queryParameters: params);
-    print('uri: $uri');
+    logDebug('WHOOP data request URI: $uri');
     final res = await http.get(uri);
-    print('res: ${res.body}');
+    logDebug('WHOOP data response: ${res.body}');
     if (res.statusCode != 200) throw Exception(res.body);
     return jsonDecode(res.body);
   }

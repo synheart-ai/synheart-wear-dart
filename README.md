@@ -1,90 +1,94 @@
 # synheart_wear
 
-[![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)](https://github.com/synheart-ai/synheart_wear)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/synheart-ai/synheart_wear)
 [![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.22.0-blue.svg)](https://flutter.dev)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Unified wearable SDK** — Cross-device, cross-platform biometric data normalization with a single standardized output format. Stream HR, HRV, steps, calories, distance, and stress signals from Apple Watch, Fitbit, Garmin, Whoop, and Samsung devices into your Flutter applications.
+> **Unified wearable SDK** for Flutter — Stream HR, HRV, steps, calories, and distance from Apple Watch, Fitbit, Garmin, Whoop, and Samsung devices with a single, standardized API.
 
-## 🚀 Features
+## ✨ Features
 
-- **📱 Cross-Platform**: Works on iOS and Android
-- **⌚ Multi-Device Support**: Apple Watch, Fitbit, Garmin, Whoop, Samsung Watch
-- **🔄 Real-Time Streaming**: Live HR and HRV data streams
-- **📊 Unified Schema**: Consistent data format across all devices
-- **🔒 Privacy-First**: Consent-based data access with encryption
-- **💾 Local Storage**: Encrypted offline data persistence
+| Feature                | Description                                 |
+| ---------------------- | ------------------------------------------- |
+| 📱 **Cross-Platform**  | iOS & Android support                       |
+| ⌚ **Multi-Device**    | Apple Watch, Fitbit, Garmin, Whoop, Samsung |
+| 🔄 **Real-Time**       | Live HR and HRV streaming                   |
+| 📊 **Unified Schema**  | Consistent data format across all devices   |
+| 🔒 **Privacy-First**   | Consent-based access with encryption        |
+| 💾 **Offline Support** | Encrypted local data persistence            |
 
-## 📦 Installation
+## 🚀 Quick Start
 
-Add `synheart_wear` to your `pubspec.yaml`:
+### Installation
 
 ```yaml
 dependencies:
-  synheart_wear: ^0.1.2
+  synheart_wear: ^0.2.0
 ```
-
-Then run:
 
 ```bash
 flutter pub get
 ```
 
-## 🎯 Quick Start
-
 ### Basic Usage
 
 ```dart
+import 'dart:io';
+import 'package:flutter/widgets.dart';
 import 'package:synheart_wear/synheart_wear.dart';
 
 void main() async {
-  // Initialize the SDK
-  final synheart = SynheartWear();
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize SDK
+  final adapters = <DeviceAdapter>{
+    DeviceAdapter.appleHealthKit, // Uses Health Connect on Android
+  };
+
+  final synheart = SynheartWear(
+    config: SynheartWearConfig.withAdapters(adapters),
+  );
+
+  // Request permissions & initialize
+  await synheart.requestPermissions(
+    permissions: {
+      PermissionType.heartRate,
+      PermissionType.steps,
+      PermissionType.calories,
+    },
+    reason: 'This app needs access to your health data.',
+  );
+
   await synheart.initialize();
 
-  // Read current metrics
+  // Read metrics
   final metrics = await synheart.readMetrics();
-  print('Heart Rate: ${metrics.getMetric(MetricType.hr)}');
+  print('HR: ${metrics.getMetric(MetricType.hr)} bpm');
   print('Steps: ${metrics.getMetric(MetricType.steps)}');
-  print('Distance: ${metrics.getMetric(MetricType.distance)} km');
 }
 ```
 
 ### Real-Time Streaming
 
 ```dart
-// Stream heart rate data every 5 seconds
+// Stream heart rate every 5 seconds
 synheart.streamHR(interval: Duration(seconds: 5))
   .listen((metrics) {
-    print('Current HR: ${metrics.getMetric(MetricType.hr)}');
+    final hr = metrics.getMetric(MetricType.hr);
+    if (hr != null) print('Current HR: $hr bpm');
   });
 
-// Stream HRV data in 5-second windows
+// Stream HRV in 5-second windows
 synheart.streamHRV(windowSize: Duration(seconds: 5))
   .listen((metrics) {
-    print('HRV RMSSD: ${metrics.getMetric(MetricType.hrvRmssd)}');
+    final hrv = metrics.getMetric(MetricType.hrvRmssd);
+    if (hrv != null) print('HRV RMSSD: $hrv ms');
   });
-```
-
-### Configuration
-
-```dart
-final synheart = SynheartWear(
-  config: SynheartWearConfig(
-    enabledAdapters: {
-      DeviceAdapter.appleHealthKit,
-      DeviceAdapter.fitbit,
-    },
-    enableLocalCaching: true,
-    enableEncryption: true,
-    streamInterval: Duration(seconds: 3),
-  ),
-);
 ```
 
 ## 📊 Data Schema
 
-All wearable data follows the **Synheart Data Schema v1.0**:
+All data follows the **Synheart Data Schema v1.0**:
 
 ```json
 {
@@ -97,8 +101,7 @@ All wearable data follows the **Synheart Data Schema v1.0**:
     "hrv_sdnn": 62,
     "steps": 1045,
     "calories": 120.4,
-    "distance": 2.5,
-    "stress": 0.3
+    "distance": 2.5
   },
   "meta": {
     "battery": 0.82,
@@ -108,215 +111,338 @@ All wearable data follows the **Synheart Data Schema v1.0**:
 }
 ```
 
-## 🔧 API Reference
-
-### Core Methods
-
-| Method                            | Description                                                         |
-| --------------------------------- | ------------------------------------------------------------------- |
-| `initialize()`                    | Request permissions & setup adapters                                |
-| `readMetrics(startTime, endTime)` | Get current biometric snapshot or metrics for a specific time range |
-| `streamHR()`                      | Stream real-time heart rate                                         |
-| `streamHRV()`                     | Stream HRV in configurable windows                                  |
-| `getCachedSessions()`             | Retrieve cached wearable data                                       |
-| `clearOldCache()`                 | Clean up old cached data                                            |
-
-### Reading Metrics with Time Range
+**Access in code:**
 
 ```dart
-// Read metrics for today (from midnight to now)
-final now = DateTime.now();
-final startOfToday = DateTime(now.year, now.month, now.day);
-final metrics = await synheart.readMetrics(
-  startTime: startOfToday,
-  endTime: now,
-);
-
-// Read metrics for a specific date range
-final metrics = await synheart.readMetrics(
-  startTime: DateTime(2025, 1, 1),
-  endTime: DateTime(2025, 1, 31),
-);
+final metrics = await synheart.readMetrics();
+print(metrics.getMetric(MetricType.hr));        // 72
+print(metrics.getMetric(MetricType.steps));     // 1045
+print(metrics.getMetric(MetricType.distance));  // 2.5
+print(metrics.batteryLevel);                     // 0.82
 ```
 
-### Permission Management
-
-```dart
-// Request specific permissions
-final permissions = await synheart.requestPermissions(
-  permissions: {PermissionType.heartRate, PermissionType.steps},
-  reason: 'This app needs access to your health data for insights.',
-);
-
-// Check permission status
-final status = synheart.getPermissionStatus();
-print('HR permission: ${status[PermissionType.heartRate]}');
-```
-
-### Local Storage
-
-```dart
-// Get cached sessions
-final sessions = await synheart.getCachedSessions(
-  startDate: DateTime.now().subtract(Duration(days: 7)),
-  limit: 100,
-);
-
-// Get cache statistics
-final stats = await synheart.getCacheStats();
-print('Total sessions: ${stats['total_sessions']}');
-
-// Clear old data
-await synheart.clearOldCache(maxAge: Duration(days: 30));
-```
+📚 **[Full API Documentation](https://synheart-ai.github.io/synheart_wear/)** | **[Data Schema Details](#data-schema-details)**
 
 ## ⌚ Supported Devices
 
-| Device         | Platform    | Integration        | Status            |
-| -------------- | ----------- | ------------------ | ----------------- |
-| Apple Watch    | iOS         | HealthKit          | ✅ Ready          |
-| Health Connect | Android     | Health Connect API | ✅ Ready          |
-| Fitbit         | iOS/Android | REST API           | 🔄 In Development |
-| Garmin         | iOS/Android | Connect API        | 🔄 In Development |
-| Whoop          | iOS/Android | REST API           | ✅ Ready          |
-| Samsung Watch  | Android     | Samsung Health     | 📋 Planned        |
+| Device         | Platform    | Status            |
+| -------------- | ----------- | ----------------- |
+| Apple Watch    | iOS         | ✅ Ready          |
+| Health Connect | Android     | ✅ Ready          |
+| Whoop          | iOS/Android | ✅ Ready          |
+| Fitbit         | iOS/Android | 🔄 In Development |
+| Garmin         | iOS/Android | 🔄 In Development |
+| Samsung Watch  | Android     | 📋 Planned        |
 
-## ⚠️ Platform-Specific Limitations
+## ⚙️ Platform Configuration
 
-### Health Connect (Android)
+### Android
 
-When using Health Connect on Android, certain data types have limitations:
+Add to `android/app/src/main/AndroidManifest.xml`:
 
-- **HRV (Heart Rate Variability)**: Health Connect supports `HRV_RMSSD` but not `HRV_SDNN`. The SDK automatically maps to the supported type.
-- **Distance**: `DISTANCE_WALKING_RUNNING` is not supported by Health Connect. This metric is only available on iOS via HealthKit.
+```xml
+<!-- Health Connect Permissions -->
+<uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
+<uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
+<uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY"/>
+<uses-permission android:name="android.permission.health.WRITE_HEART_RATE_VARIABILITY"/>
+<uses-permission android:name="android.permission.health.READ_STEPS"/>
+<uses-permission android:name="android.permission.health.WRITE_STEPS"/>
+<uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
+<uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED"/>
+<uses-permission android:name="android.permission.health.READ_DISTANCE"/>
+<uses-permission android:name="android.permission.health.WRITE_DISTANCE"/>
 
-### HealthKit (iOS)
+<!-- Health Connect Package Query -->
+<queries>
+    <package android:name="com.google.android.apps.healthdata" />
+    <intent>
+        <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+    </intent>
+</queries>
 
-iOS HealthKit supports all metrics including:
+<application>
+    <activity android:name=".MainActivity">
+        <intent-filter>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent-filter>
+    </activity>
 
-- Heart Rate
-- HRV (SDNN)
-- Steps
-- Calories
-- Distance (walking/running)
+    <!-- Required: Privacy Policy Activity Alias -->
+    <activity-alias
+        android:name="ViewPermissionUsageActivity"
+        android:exported="true"
+        android:targetActivity=".MainActivity"
+        android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+            <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+        </intent-filter>
+    </activity-alias>
+</application>
+```
+
+**Note:** `MainActivity` must extend `FlutterFragmentActivity` (not `FlutterActivity`) for Android 14+.
+
+### iOS
+
+Add to `ios/Runner/Info.plist`:
+
+```xml
+<key>NSHealthShareUsageDescription</key>
+<string>This app needs access to your health data to provide insights.</string>
+
+<key>NSHealthUpdateUsageDescription</key>
+<string>This app needs permission to update your health data.</string>
+```
+
+## ⚠️ Platform Limitations
+
+| Platform    | Limitation                      | SDK Behavior                         |
+| ----------- | ------------------------------- | ------------------------------------ |
+| **Android** | HRV: Only `HRV_RMSSD` supported | Automatically maps to supported type |
+| **Android** | Distance: Uses `DISTANCE_DELTA` | Automatically uses correct type      |
+| **iOS**     | Full support for all metrics    | No limitations                       |
 
 ## 🔒 Privacy & Security
 
-- **Consent-First Design**: Users must explicitly approve data access
-- **Data Encryption**: AES-256-CBC encryption for local storage
-- **Key Management**: Automatic key generation and rotation
-- **No Persistent IDs**: Anonymized UUIDs for experiments
-- **Compliant**: Follows Synheart Data Governance Policy
-- **Right to Forget**: Users can revoke permissions and delete encrypted data
+- ✅ Consent-first design
+- ✅ AES-256-CBC encryption
+- ✅ Automatic key management
+- ✅ Anonymized UUIDs
+- ✅ Right to forget (revoke & delete)
 
-## 🏗️ Architecture
+## 📖 Additional Resources
+
+- **[Full API Documentation](https://synheart-ai.github.io/synheart_wear/)** — Complete API reference
+- **[GitHub Issues](https://github.com/synheart-ai/synheart_wear/issues)** — Report bugs or request features
+- **[pub.dev Package](https://pub.dev/packages/synheart_wear)** — Package details
+
+---
+
+## 📋 Detailed Sections
+
+<details>
+<summary><b>Data Schema Details</b></summary>
+
+### Field Descriptions
+
+| Field               | Type                | Description              | Example                                    |
+| ------------------- | ------------------- | ------------------------ | ------------------------------------------ |
+| `timestamp`         | `string` (ISO 8601) | When data was recorded   | `"2025-10-20T18:30:00Z"`                   |
+| `device_id`         | `string`            | Unique device identifier | `"applewatch_1234"`                        |
+| `source`            | `string`            | Data source adapter      | `"apple_healthkit"`, `"fitbit"`, `"whoop"` |
+| `metrics.hr`        | `number`            | Heart rate (bpm)         | `72`                                       |
+| `metrics.hrv_rmssd` | `number`            | HRV RMSSD (ms)           | `45`                                       |
+| `metrics.hrv_sdnn`  | `number`            | HRV SDNN (ms)            | `62`                                       |
+| `metrics.steps`     | `number`            | Step count               | `1045`                                     |
+| `metrics.calories`  | `number`            | Calories (kcal)          | `120.4`                                    |
+| `metrics.distance`  | `number`            | Distance (km)            | `2.5`                                      |
+| `meta.battery`      | `number`            | Battery level (0.0-1.0)  | `0.82` (82%)                               |
+| `meta.synced`       | `boolean`           | Sync status              | `true`                                     |
+
+**Notes:**
+
+- Optional fields may be `null` if unavailable
+- Platform limitations may affect metric availability
+- `meta` object may contain device-specific fields
+
+</details>
+
+<details>
+<summary><b>Platform-Specific Permission Handling</b></summary>
+
+```dart
+Set<PermissionType> permissions;
+if (Platform.isAndroid) {
+  permissions = {
+    PermissionType.heartRate,
+    PermissionType.heartRateVariability, // RMSSD on Android
+    PermissionType.steps,
+    PermissionType.calories,
+    // Distance supported via DISTANCE_DELTA
+  };
+} else {
+  permissions = {
+    PermissionType.heartRate,
+    PermissionType.heartRateVariability,
+    PermissionType.steps,
+    PermissionType.calories,
+    PermissionType.distance,
+  };
+}
+
+final result = await synheart.requestPermissions(
+  permissions: permissions,
+  reason: 'This app needs access to your health data.',
+);
+```
+
+</details>
+
+<details>
+<summary><b>Usage Examples</b></summary>
+
+### Complete Health Monitoring App
+
+```dart
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:synheart_wear/synheart_wear.dart';
+
+class HealthMonitor extends StatefulWidget {
+  @override
+  _HealthMonitorState createState() => _HealthMonitorState();
+}
+
+class _HealthMonitorState extends State<HealthMonitor> {
+  late SynheartWear _sdk;
+  StreamSubscription<WearMetrics>? _hrSubscription;
+  WearMetrics? _latestMetrics;
+  bool _isConnected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sdk = SynheartWear(
+      config: SynheartWearConfig.withAdapters({DeviceAdapter.appleHealthKit}),
+    );
+  }
+
+  Future<void> _connect() async {
+    try {
+      final result = await _sdk.requestPermissions(
+        permissions: {
+          PermissionType.heartRate,
+          PermissionType.steps,
+          PermissionType.calories,
+        },
+        reason: 'This app needs access to your health data.',
+      );
+
+      if (result.values.any((s) => s == ConsentStatus.granted)) {
+        await _sdk.initialize();
+        final metrics = await _sdk.readMetrics();
+        setState(() {
+          _isConnected = true;
+          _latestMetrics = metrics;
+        });
+      }
+    } catch (e) {
+      print('Error: $e');
+    }
+  }
+
+  void _startStreaming() {
+    _hrSubscription = _sdk.streamHR(interval: Duration(seconds: 3))
+      .listen((metrics) {
+        setState(() => _latestMetrics = metrics);
+      });
+  }
+
+  @override
+  void dispose() {
+    _hrSubscription?.cancel();
+    _sdk.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Health Monitor')),
+      body: _isConnected
+          ? Column(
+              children: [
+                if (_latestMetrics != null) ...[
+                  Text('HR: ${_latestMetrics!.getMetric(MetricType.hr)} bpm'),
+                  Text('Steps: ${_latestMetrics!.getMetric(MetricType.steps)}'),
+                ],
+                ElevatedButton(
+                  onPressed: _startStreaming,
+                  child: Text('Start Streaming'),
+                ),
+              ],
+            )
+          : Center(
+              child: ElevatedButton(
+                onPressed: _connect,
+                child: Text('Connect to Health'),
+              ),
+            ),
+    );
+  }
+}
+```
+
+### Error Handling
+
+```dart
+try {
+  final metrics = await synheart.readMetrics();
+  if (metrics.hasValidData) {
+    print('Data available');
+  }
+} on PermissionDeniedError catch (e) {
+  print('Permission denied: $e');
+} on DeviceUnavailableError catch (e) {
+  print('Device unavailable: $e');
+} on SynheartWearError catch (e) {
+  print('SDK error: $e');
+}
+```
+
+</details>
+
+<details>
+<summary><b>Architecture</b></summary>
 
 ```
 ┌─────────────────────────┐
 │   synheart_wear SDK     │
-├───────────┬─────────────┤
-│           │             │
-│           ▼             │
-├───────────┬─────────────┤
+├─────────────────────────┤
 │ Device Adapters Layer   │
 │ (Apple, Fitbit, etc.)   │
-├───────────┬─────────────┤
-│           │             │
-│           ▼             │
-├───────────┬─────────────┤
+├─────────────────────────┤
 │ Normalization Engine    │
 │ (standard output schema)│
-├───────────┬─────────────┤
-│           │             │
-│           ▼             │
-├───────────┬─────────────┤
+├─────────────────────────┤
 │   Local Cache & Storage │
 │   (encrypted, offline)  │
 └─────────────────────────┘
 ```
 
-## 📱 Usage Examples
+</details>
 
-The SDK provides comprehensive examples in the code documentation. Here are common use cases:
+<details>
+<summary><b>Roadmap</b></summary>
 
-### Example: Basic Health Monitoring
+| Version | Goal                    | Status         |
+| ------- | ----------------------- | -------------- |
+| v0.1    | Core SDK                | ✅ Complete    |
+| v0.2    | Real-time streaming     | ✅ Complete    |
+| v0.3    | Extended device support | 🔄 In Progress |
+| v0.4    | SWIP integration        | 📋 Planned     |
+| v1.0    | Public Release          | 📋 Planned     |
 
-```dart
-import 'package:synheart_wear/synheart_wear.dart';
+</details>
 
-void main() async {
-  final synheart = SynheartWear();
-  await synheart.initialize();
-
-  // Read metrics periodically
-  final metrics = await synheart.readMetrics();
-  print('Current HR: ${metrics.getMetric(MetricType.hr)}');
-  print('Steps today: ${metrics.getMetric(MetricType.steps)}');
-  print('Distance: ${metrics.getMetric(MetricType.distance)} km');
-}
-```
-
-### Example: Real-Time Monitoring
-
-```dart
-// Stream heart rate every 5 seconds
-synheart.streamHR(interval: Duration(seconds: 5))
-  .listen((metrics) {
-    final hr = metrics.getMetric(MetricType.hr);
-    if (hr != null && hr > 100) {
-      print('Elevated heart rate detected: $hr bpm');
-    }
-  });
-```
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-flutter test
-```
-
-Tests cover:
-
-- Core SDK functionality
-- Data model serialization
-- Error handling scenarios
-- Permission management
-- Configuration system
-
-## 📋 Roadmap
-
-| Version | Goal                    | Description                                 |
-| ------- | ----------------------- | ------------------------------------------- |
-| v0.1    | Core SDK                | ✅ Apple Watch + Fitbit integration         |
-| v0.2    | Real-time streaming     | 🔄 HRV, HR over BLE                         |
-| v0.3    | Extended device support | ✅ Whoop integration, 🔄 Garmin, 📋 Samsung |
-| v0.4    | SWIP integration        | 📋 Add impact measurement hooks             |
-| v1.0    | Public Release          | 📋 Open standard SDK and docs               |
+---
 
 ## 🤝 Contributing
 
-We welcome contributions! To contribute:
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) or:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass (`flutter test`)
-6. Submit a pull request
-
-Please ensure your code follows the existing style and includes appropriate tests.
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🔗 Links
-
-- **Synheart AI**: [synheart.ai](https://synheart.ai)
-- **Issues**: [GitHub Issues](https://github.com/synheart-ai/synheart_wear/issues)
-- **Package**: [pub.dev](https://pub.dev/packages/synheart_wear)
 
 ## 👥 Authors
 

@@ -25,13 +25,13 @@ class AppleHealthKitAdapter implements WearAdapter {
   @override
   Set<PermissionType> getPlatformSupportedPermissions() {
     if (Platform.isAndroid) {
-      // Health Connect doesn't support DISTANCE_WALKING_RUNNING
+      // Health Connect uses DISTANCE_DELTA instead of DISTANCE_WALKING_RUNNING
       return {
         PermissionType.heartRate,
         PermissionType.heartRateVariability, // RMSSD on Android
         PermissionType.steps,
         PermissionType.calories,
-        // Distance is not supported by Health Connect
+        PermissionType.distance, // Uses DISTANCE_DELTA on Android
       };
     } else {
       // iOS HealthKit supports all including distance

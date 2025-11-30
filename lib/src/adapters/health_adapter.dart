@@ -47,9 +47,11 @@ class HealthAdapter {
           healthTypes.add(HealthDataType.ACTIVE_ENERGY_BURNED);
           break;
         case PermissionType.distance:
-          // DISTANCE_WALKING_RUNNING is only supported on iOS HealthKit
-          // Health Connect on Android doesn't support this data type
-          if (!Platform.isAndroid) {
+          // Health Connect (Android) uses DISTANCE_DELTA
+          // HealthKit (iOS) uses DISTANCE_WALKING_RUNNING
+          if (Platform.isAndroid) {
+            healthTypes.add(HealthDataType.DISTANCE_DELTA);
+          } else {
             healthTypes.add(HealthDataType.DISTANCE_WALKING_RUNNING);
           }
           break;
@@ -69,6 +71,8 @@ class HealthAdapter {
                 : HealthDataType.HEART_RATE_VARIABILITY_SDNN,
             HealthDataType.STEPS,
             HealthDataType.ACTIVE_ENERGY_BURNED,
+            if (Platform.isAndroid)
+              HealthDataType.DISTANCE_DELTA, // Android distance
             if (!Platform.isAndroid)
               HealthDataType.DISTANCE_WALKING_RUNNING, // iOS only
             HealthDataType.SLEEP_IN_BED,
@@ -224,6 +228,10 @@ class HealthAdapter {
           caloriesSum += value;
           break;
         case HealthDataType.DISTANCE_WALKING_RUNNING:
+          // HealthKit (iOS) uses DISTANCE_WALKING_RUNNING
+          distanceSum += value;
+          break;
+        case HealthDataType.DISTANCE_DELTA:
           // Sum all distance
           // HealthKit/Health Connect typically returns distance in meters
           // But check the unit to be safe and convert if needed
@@ -271,8 +279,7 @@ class HealthAdapter {
       metrics['distance'] = distanceSum / 1000.0; // Convert meters to km
       metricTimestamps['distance'] = latestTimestamp ?? DateTime.now();
     } else if (Platform.isAndroid && stepsSum > 0) {
-      // On Android, Health Connect doesn't support DISTANCE_WALKING_RUNNING
-      // Estimate distance from steps (average step length ~0.762 meters for adults)
+      // Fallback: If no distance data from Health Connect, estimate from steps
       // This is an approximation and may not be accurate for all users
       const averageStepLengthMeters = 0.762; // ~2.5 feet per step
       final estimatedDistanceMeters = stepsSum * averageStepLengthMeters;

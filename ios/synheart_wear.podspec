@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'synheart_wear'
-  s.version          = '0.1.2'
+  s.version          = '0.2.0'
   s.summary          = 'Unified wearable SDK for Synheart (iOS plugin stubs)'
   s.description      = <<-DESC
 Synheart Wear iOS plugin for optional HealthKit heartbeat series (RR) integration.

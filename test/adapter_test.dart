@@ -76,7 +76,11 @@ class MockWearAdapter implements WearAdapter {
   Future<void> ensurePermissions() async {}
 
   @override
-  Future<WearMetrics?> readSnapshot({bool isRealTime = false}) async {
+  Future<WearMetrics?> readSnapshot({
+    bool isRealTime = false,
+    DateTime? startTime,
+    DateTime? endTime,
+  }) async {
     readSnapshotCalled = true;
     return WearMetrics(
       timestamp: DateTime.now(),
@@ -85,11 +89,10 @@ class MockWearAdapter implements WearAdapter {
       metrics: {'hr': 75},
     );
   }
-  
+
   @override
   Set<PermissionType> getPlatformSupportedPermissions() {
-    // TODO: implement getPlatformSupportedPermissions
-    throw UnimplementedError();
+    return supportedPermissions;
   }
 }
 
@@ -105,13 +108,16 @@ class FailingWearAdapter implements WearAdapter {
   Future<void> ensurePermissions() async {}
 
   @override
-  Future<WearMetrics?> readSnapshot({bool isRealTime = false}) {
+  Future<WearMetrics?> readSnapshot({
+    bool isRealTime = false,
+    DateTime? startTime,
+    DateTime? endTime,
+  }) {
     throw UnimplementedError();
   }
-  
+
   @override
   Set<PermissionType> getPlatformSupportedPermissions() {
-    // TODO: implement getPlatformSupportedPermissions
-    throw UnimplementedError();
+    return supportedPermissions;
   }
 }

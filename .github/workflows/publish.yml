@@ -18,16 +18,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Dart
-        uses: dart-lang/setup-dart@v1
-        with:
-          dart-version: "3.8.0"
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.32.0"
           channel: "stable"
+
+      - name: Verify SDK versions
+        run: |
+          echo "Dart SDK version: $(dart --version)"
+          echo "Flutter SDK version: $(flutter --version | head -n 1)"
 
       - name: Get dependencies
         run: flutter pub get
@@ -44,8 +44,13 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
           fi
 
-          # Get version from pubspec.yaml
-          PUBSPEC_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
+            # Get version from pubspec.yaml
+          PUBSPEC_VERSION=$(grep -E '^\s*version:\s*' pubspec.yaml | sed -E 's/^\s*version:\s*//' | sed -E 's/\s*$//' | head -n 1)
+
+          if [ -z "$PUBSPEC_VERSION" ]; then
+            echo "❌ Failed to extract version from pubspec.yaml"
+            exit 1
+          fi
 
           echo "Release version: $VERSION"
           echo "Pubspec version: $PUBSPEC_VERSION"

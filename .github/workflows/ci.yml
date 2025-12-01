@@ -21,16 +21,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Dart
-        uses: dart-lang/setup-dart@v1
-        with:
-          dart-version: "3.8.0"
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.32.0"
           channel: "stable"
+
+      - name: Verify SDK versions
+        run: |
+          echo "Dart SDK version: $(dart --version)"
+          echo "Flutter SDK version: $(flutter --version | head -n 1)"
 
       - name: Get dependencies
         run: flutter pub get
@@ -58,6 +58,11 @@ jobs:
           flutter-version: "3.32.0"
           channel: "stable"
 
+      - name: Verify SDK versions
+        run: |
+          echo "Dart SDK version: $(dart --version)"
+          echo "Flutter SDK version: $(flutter --version | head -n 1)"
+
       - name: Get dependencies
         run: flutter pub get
 
@@ -76,8 +81,6 @@ jobs:
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
-        with:
-          dart-version: "3.8.0"
 
       - name: Get dependencies
         run: dart pub get

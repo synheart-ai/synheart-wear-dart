@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../core/models.dart';
 import 'encryption_service.dart';
+import 'logger.dart';
 
 /// Local caching system for wearable data
 class LocalCache {
@@ -114,7 +115,8 @@ class LocalCache {
   }
 
   /// Get cache statistics
-  static Future<Map<String, Object?>> getCacheStats({bool? encryptionEnabled}) async {
+  static Future<Map<String, Object?>> getCacheStats(
+      {bool? encryptionEnabled}) async {
     try {
       final cacheDir = await _getCacheDirectory();
       if (!await cacheDir.exists()) {
@@ -195,7 +197,7 @@ class LocalCache {
       await metaFile.writeAsString(lines.join('\n'));
     } catch (e) {
       // Meta log failure shouldn't break the main operation
-      print('Warning: Failed to update meta log: $e');
+      logWarning('Failed to update meta log', e);
     }
   }
 

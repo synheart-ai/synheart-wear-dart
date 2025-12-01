@@ -10,12 +10,12 @@ class AppleHealthKitAdapter implements WearAdapter {
 
   @override
   Set<PermissionType> get supportedPermissions => const {
-        PermissionType.heartRate,
-        PermissionType.heartRateVariability,
-        PermissionType.steps,
-        PermissionType.calories,
-        PermissionType.distance,
-      };
+    PermissionType.heartRate,
+    PermissionType.heartRateVariability,
+    PermissionType.steps,
+    PermissionType.calories,
+    PermissionType.distance,
+  };
 
   /// Get permissions that are actually supported on the current platform
   Set<PermissionType> get _platformSupportedPermissions {
@@ -53,8 +53,9 @@ class AppleHealthKitAdapter implements WearAdapter {
 
     // Request permissions using health package
     // Use platform-specific permissions (exclude HRV on Android)
-    final granted =
-        await HealthAdapter.requestPermissions(_platformSupportedPermissions);
+    final granted = await HealthAdapter.requestPermissions(
+      _platformSupportedPermissions,
+    );
     if (!granted) {
       throw PermissionDeniedError(
         Platform.isAndroid

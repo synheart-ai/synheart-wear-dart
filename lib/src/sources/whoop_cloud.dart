@@ -28,9 +28,9 @@ class WhoopProvider {
     String? redirectUri,
     this.userId,
     bool loadFromStorage = true,
-  })  : baseUrl = baseUrl ?? defaultBaseUrl,
-        appId = appId ?? 'app-123',
-        redirectUri = redirectUri ?? defaultRedirectUri {
+  }) : baseUrl = baseUrl ?? defaultBaseUrl,
+       appId = appId ?? 'app-123',
+       redirectUri = redirectUri ?? defaultRedirectUri {
     if (loadFromStorage) {
       _loadFromStorage();
     }
@@ -146,8 +146,10 @@ class WhoopProvider {
   String _generateState([int length = 8]) {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     final rand = Random.secure();
-    return List.generate(length, (_) => chars[rand.nextInt(chars.length)])
-        .join();
+    return List.generate(
+      length,
+      (_) => chars[rand.nextInt(chars.length)],
+    ).join();
   }
 
   // 1. Get authorization URL
@@ -232,8 +234,7 @@ class WhoopProvider {
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) =>
-      _fetch('recovery', userId, start, end, limit, cursor);
+  }) => _fetch('recovery', userId, start, end, limit, cursor);
 
   Future<Map<String, dynamic>> fetchSleep({
     required String userId,
@@ -241,8 +242,7 @@ class WhoopProvider {
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) =>
-      _fetch('sleep', userId, start, end, limit, cursor);
+  }) => _fetch('sleep', userId, start, end, limit, cursor);
 
   Future<Map<String, dynamic>> fetchWorkouts({
     required String userId,
@@ -250,8 +250,7 @@ class WhoopProvider {
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) =>
-      _fetch('workouts', userId, start, end, limit, cursor);
+  }) => _fetch('workouts', userId, start, end, limit, cursor);
 
   Future<Map<String, dynamic>> fetchCycles({
     required String userId,
@@ -259,8 +258,7 @@ class WhoopProvider {
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) =>
-      _fetch('cycles', userId, start, end, limit, cursor);
+  }) => _fetch('cycles', userId, start, end, limit, cursor);
 
   Future<Map<String, dynamic>> _fetch(
     String type,
@@ -278,8 +276,9 @@ class WhoopProvider {
       if (cursor != null) 'cursor': cursor,
     };
 
-    final uri = Uri.parse('$baseUrl/v1/whoop/data/$userId/$type')
-        .replace(queryParameters: params);
+    final uri = Uri.parse(
+      '$baseUrl/v1/whoop/data/$userId/$type',
+    ).replace(queryParameters: params);
     logDebug('WHOOP data request URI: $uri');
     final res = await http.get(uri);
     logDebug('WHOOP data response: ${res.body}');
@@ -289,9 +288,9 @@ class WhoopProvider {
 
   // 4. Disconnect
   Future<void> disconnect(String userId) async {
-    final uri = Uri.parse('$baseUrl/v1/whoop/oauth/disconnect').replace(
-      queryParameters: {'user_id': userId, 'app_id': appId},
-    );
+    final uri = Uri.parse(
+      '$baseUrl/v1/whoop/oauth/disconnect',
+    ).replace(queryParameters: {'user_id': userId, 'app_id': appId});
     final res = await http.delete(uri);
     if (res.statusCode != 200) throw Exception(res.body);
   }

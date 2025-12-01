@@ -24,18 +24,21 @@ class SynheartWearError implements Exception {
 
 class PermissionDeniedError extends SynheartWearError {
   PermissionDeniedError(String message)
-      : super(message, code: 'PERMISSION_DENIED');
+    : super(message, code: 'PERMISSION_DENIED');
 }
 
 class DeviceUnavailableError extends SynheartWearError {
   DeviceUnavailableError(String message)
-      : super(message, code: 'DEVICE_UNAVAILABLE');
+    : super(message, code: 'DEVICE_UNAVAILABLE');
 }
 
 class NetworkError extends SynheartWearError {
   NetworkError(String message, [Exception? originalException])
-      : super(message,
-            code: 'NETWORK_ERROR', originalException: originalException);
+    : super(
+        message,
+        code: 'NETWORK_ERROR',
+        originalException: originalException,
+      );
 }
 
 /// Unified wearable metrics data model following RFC schema
@@ -66,20 +69,21 @@ class WearMetrics {
       source: json['source'] as String,
       metrics: Map<String, num?>.from(json['metrics'] as Map),
       meta: Map<String, Object?>.from(json['meta'] as Map? ?? {}),
-      rrIntervalsMs:
-          (json['rr_ms'] as List?)?.map((e) => (e as num).toDouble()).toList(),
+      rrIntervalsMs: (json['rr_ms'] as List?)
+          ?.map((e) => (e as num).toDouble())
+          .toList(),
     );
   }
 
   /// Convert to JSON following RFC schema
   Map<String, Object?> toJson() => {
-        'timestamp': timestamp.toIso8601String(),
-        'device_id': deviceId,
-        'source': source,
-        'metrics': metrics,
-        'meta': meta,
-        if (rrIntervalsMs != null) 'rr_ms': rrIntervalsMs,
-      };
+    'timestamp': timestamp.toIso8601String(),
+    'device_id': deviceId,
+    'source': source,
+    'metrics': metrics,
+    'meta': meta,
+    if (rrIntervalsMs != null) 'rr_ms': rrIntervalsMs,
+  };
 
   /// Get specific metric value with type safety
   num? getMetric(MetricType type) {

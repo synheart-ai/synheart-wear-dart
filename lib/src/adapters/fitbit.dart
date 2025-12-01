@@ -8,10 +8,10 @@ class FitbitAdapter implements WearAdapter {
 
   @override
   Set<PermissionType> get supportedPermissions => const {
-        PermissionType.heartRate,
-        PermissionType.steps,
-        PermissionType.calories,
-      };
+    PermissionType.heartRate,
+    PermissionType.steps,
+    PermissionType.calories,
+  };
 
   @override
   Set<PermissionType> getPlatformSupportedPermissions() {

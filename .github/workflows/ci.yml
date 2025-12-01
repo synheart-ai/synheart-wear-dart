@@ -1,147 +1,86 @@
 name: CI
 
-# CI/CD temporarily disabled - doing everything manually for now
-# Will re-enable in the future
-# on:
-#   push:
-#     branches: [main, dev, "feature/**"]
-#   pull_request:
-#     branches: [main, dev]
-#   release:
-#     types: [created]
-
-# Disable workflow by using a condition that never runs
 on:
-  workflow_dispatch:
-    inputs:
-      skip:
-        description: "CI disabled - use manual processes"
-        required: false
+  push:
+    branches:
+      - main
+      - dev
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+      - dev
+  release:
+    types: [created]
 
 jobs:
   test:
-    name: Test
+    name: Test & Analyze
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.0"
+          flutter-version: "3.32.0"
           channel: "stable"
+
+      - name: Verify SDK versions
+        run: |
+          echo "Dart SDK version: $(dart --version)"
+          echo "Flutter SDK version: $(flutter --version | head -n 1)"
 
       - name: Get dependencies
         run: flutter pub get
 
-      # Temporarily commented out - will fix in future
-      # - name: Verify formatting
-      #   run: dart format --output=none --set-exit-if-changed .
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
 
-      # - name: Analyze code
-      #   run: flutter analyze
+      - name: Analyze code
+        run: flutter analyze
 
-      # - name: Run tests
-      #   run: flutter test --coverage
-
-      # - name: Upload coverage
-      #   uses: codecov/codecov-action@v3
-      #   with:
-      #     file: coverage/lcov.info
-      #     fail_ci_if_error: false
-
-      - name: Skip tests temporarily
-        run: echo "Tests temporarily disabled - will fix in future"
+      - name: Run tests
+        run: flutter test
 
   build:
-    name: Build
+    name: Build Package
+    needs: test
     runs-on: ubuntu-latest
-    # needs: test  # Temporarily disabled
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.0"
+          flutter-version: "3.32.0"
           channel: "stable"
+
+      - name: Verify SDK versions
+        run: |
+          echo "Dart SDK version: $(dart --version)"
+          echo "Flutter SDK version: $(flutter --version | head -n 1)"
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build example (Android)
+      - name: Verify package structure
         run: |
-          cd example
-          flutter build apk --debug
-
-      - name: Build example (iOS)
-        run: |
-          cd example
-          flutter build ios --no-codesign --debug
-        if: runner.os == 'macos'
-
-  publish:
-    name: Publish to pub.dev
-    runs-on: ubuntu-latest
-    # needs: [test, build]  # Temporarily disabled - only needs build
-    needs: [build]
-    if: github.event_name == 'release' && github.event.action == 'created'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetch all history to check branches
-
-      - name: Verify release is from main branch
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "Checking if tag $TAG_NAME is on main branch..."
-
-          # Check if tag exists on main branch
-          if ! git branch -r --contains "$TAG_NAME" | grep -q "origin/main"; then
-              echo "❌ Error: Tag $TAG_NAME is not on the main branch"
-              echo "Available branches containing this tag:"
-              git branch -r --contains "$TAG_NAME"
-              exit 1
-          fi
-
-          echo "✅ Tag $TAG_NAME is on main branch"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.22.0"
-          channel: "stable"
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Verify package
-        run: flutter pub publish --dry-run
-
-      - name: Publish to pub.dev
-        run: flutter pub publish --force
-        env:
-          PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
+          flutter pub run build_runner build --delete-conflicting-outputs || echo "No build_runner configured"
+          flutter pub publish --dry-run
 
   docs:
-    name: Generate API Documentation
+    name: Generate Documentation
     runs-on: ubuntu-latest
-    # needs: test  # Temporarily disabled
-
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
 
       - name: Get dependencies
         run: dart pub get
@@ -150,8 +89,8 @@ jobs:
         run: dart doc
 
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
+        if: github.ref == 'refs/heads/main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./doc/api

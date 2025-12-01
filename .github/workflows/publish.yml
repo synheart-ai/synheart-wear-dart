@@ -1,74 +1,91 @@
 name: Publish to pub.dev
 
-# CI/CD temporarily disabled - doing everything manually for now
-# Will re-enable in the future
-# on:
-#   release:
-#     types: [created]
-#   workflow_dispatch:
-#     inputs:
-#       version:
-#         description: "Version to publish (e.g., 0.2.0)"
-#         required: true
-#         type: string
-
-# Disable workflow by using a condition that never runs
 on:
+  release:
+    types: [created]
   workflow_dispatch:
     inputs:
-      skip:
-        description: 'Publishing disabled - use manual processes'
-        required: false
+      version:
+        description: "Version to publish (e.g., 0.2.0)"
+        required: true
+        type: string
 
 jobs:
   publish:
     name: Publish Package
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetch all history to check branches
-
-      - name: Verify release is from main branch
-        if: github.event_name == 'release'
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "Checking if tag $TAG_NAME is on main branch..."
-
-          # Check if tag exists on main branch
-          if ! git branch -r --contains "$TAG_NAME" | grep -q "origin/main"; then
-              echo "❌ Error: Tag $TAG_NAME is not on the main branch"
-              echo "Available branches containing this tag:"
-              git branch -r --contains "$TAG_NAME"
-              exit 1
-          fi
-
-          echo "✅ Tag $TAG_NAME is on main branch"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.0"
+          flutter-version: "3.32.0"
           channel: "stable"
+
+      - name: Verify SDK versions
+        run: |
+          echo "Dart SDK version: $(dart --version)"
+          echo "Flutter SDK version: $(flutter --version | head -n 1)"
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Verify package
-        run: flutter pub publish --dry-run
-
-      - name: Check version matches release tag
+      - name: Verify version
+        id: verify_version
         run: |
-          VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2)
-          TAG_VERSION=${GITHUB_REF#refs/tags/}
-          if [ "$VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: Version in pubspec.yaml ($VERSION) doesn't match release tag ($TAG_VERSION)"
+          if [ "${{ github.event_name }}" == "release" ]; then
+            # Extract version from release tag (remove 'v' prefix if present)
+            RELEASE_TAG="${{ github.event.release.tag_name }}"
+            VERSION="${RELEASE_TAG#v}"
+          else
+            # Use manual input version
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+
+            # Get version from pubspec.yaml
+          PUBSPEC_VERSION=$(grep -E '^\s*version:\s*' pubspec.yaml | sed -E 's/^\s*version:\s*//' | sed -E 's/\s*$//' | head -n 1)
+
+          if [ -z "$PUBSPEC_VERSION" ]; then
+            echo "❌ Failed to extract version from pubspec.yaml"
             exit 1
           fi
 
-      - name: Publish to pub.dev
-        run: flutter pub publish --force
+          echo "Release version: $VERSION"
+          echo "Pubspec version: $PUBSPEC_VERSION"
+
+          if [ "$VERSION" != "$PUBSPEC_VERSION" ]; then
+            echo "❌ Version mismatch! Release tag version ($VERSION) does not match pubspec.yaml version ($PUBSPEC_VERSION)"
+            exit 1
+          fi
+
+          echo "✅ Version matches!"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate package
+        run: |
+          flutter pub publish --dry-run
+
+      - name: Setup pub credentials
         env:
           PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
+        run: |
+          if [ -z "$PUB_CREDENTIALS" ]; then
+            echo "⚠️ PUB_CREDENTIALS secret not found. Skipping publish."
+            echo "To enable publishing, add PUB_CREDENTIALS secret in repository settings."
+            exit 0
+          fi
+          mkdir -p ~/.pub-cache
+          echo -n "$PUB_CREDENTIALS" > ~/.pub-cache/credentials.json
+          chmod 600 ~/.pub-cache/credentials.json
+
+      - name: Publish to pub.dev
+        env:
+          PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
+        run: |
+          if [ -z "$PUB_CREDENTIALS" ]; then
+            echo "⚠️ PUB_CREDENTIALS secret not found. Skipping publish."
+            exit 0
+          fi
+          flutter pub publish --force

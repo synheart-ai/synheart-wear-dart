@@ -1,3 +1,4 @@
+import 'dart:io';
 import '../../synheart_wear.dart';
 import 'health_adapter.dart';
 import 'wear_adapter.dart';
@@ -13,35 +14,74 @@ class AppleHealthKitAdapter implements WearAdapter {
         PermissionType.heartRateVariability,
         PermissionType.steps,
         PermissionType.calories,
+        PermissionType.distance,
       };
 
-  @override
-  Future<void> ensurePermissions() async {
-    // Check if HealthKit is available
-    final isAvailable = await HealthAdapter.isAvailable();
-    if (!isAvailable) {
-      throw DeviceUnavailableError('HealthKit is not available on this device');
-    }
+  /// Get permissions that are actually supported on the current platform
+  Set<PermissionType> get _platformSupportedPermissions {
+    return getPlatformSupportedPermissions();
+  }
 
-    // Request permissions using health package
-    final granted =
-        await HealthAdapter.requestPermissions(supportedPermissions);
-    if (!granted) {
-      throw PermissionDeniedError('HealthKit permissions were denied');
+  @override
+  Set<PermissionType> getPlatformSupportedPermissions() {
+    if (Platform.isAndroid) {
+      // Health Connect uses DISTANCE_DELTA instead of DISTANCE_WALKING_RUNNING
+      return {
+        PermissionType.heartRate,
+        PermissionType.heartRateVariability, // RMSSD on Android
+        PermissionType.steps,
+        PermissionType.calories,
+        PermissionType.distance, // Uses DISTANCE_DELTA on Android
+      };
+    } else {
+      // iOS HealthKit supports all including distance
+      return supportedPermissions;
     }
   }
 
   @override
-  Future<WearMetrics?> readSnapshot({bool isRealTime = true}) async {
+  Future<void> ensurePermissions() async {
+    // Check if HealthKit/Health Connect is available
+    final isAvailable = await HealthAdapter.isAvailable();
+    if (!isAvailable) {
+      throw DeviceUnavailableError(
+        Platform.isAndroid
+            ? 'Health Connect is not available on this device'
+            : 'HealthKit is not available on this device',
+      );
+    }
+
+    // Request permissions using health package
+    // Use platform-specific permissions (exclude HRV on Android)
+    final granted =
+        await HealthAdapter.requestPermissions(_platformSupportedPermissions);
+    if (!granted) {
+      throw PermissionDeniedError(
+        Platform.isAndroid
+            ? 'Health Connect permissions were denied'
+            : 'HealthKit permissions were denied',
+      );
+    }
+  }
+
+  @override
+  Future<WearMetrics?> readSnapshot({
+    bool isRealTime = true,
+    DateTime? startTime,
+    DateTime? endTime,
+  }) async {
     try {
-      // Use shorter time range for real-time focus exercises, longer for general health
-      final timeRange = const Duration(hours: 24);
+      // Use provided time range or default to last 30 days
+      final effectiveStartTime =
+          startTime ?? DateTime.now().subtract(const Duration(days: 30));
+      final effectiveEndTime = endTime ?? DateTime.now();
 
       // Read data using health package
+      // Use platform-specific permissions (exclude HRV on Android)
       final dataPoints = await HealthAdapter.readHealthData(
-        supportedPermissions,
-        startTime: DateTime.now().subtract(timeRange),
-        endTime: DateTime.now(),
+        _platformSupportedPermissions,
+        startTime: effectiveStartTime,
+        endTime: effectiveEndTime,
       );
 
       // Convert to WearMetrics
@@ -52,26 +92,33 @@ class AppleHealthKitAdapter implements WearAdapter {
       );
 
       if (metrics != null) {
-        // Attempt to enrich with RR intervals via HealthKit heartbeat series
-        final rr = await HealthKitRRChannel.fetchHeartbeatSeries(
-          start: DateTime.now().subtract(const Duration(minutes: 30)),
-          end: DateTime.now(),
-        );
-        if (rr.isNotEmpty) {
-          return WearMetrics(
-            timestamp: metrics.timestamp,
-            deviceId: metrics.deviceId,
-            source: metrics.source,
-            metrics: metrics.metrics,
-            meta: metrics.meta,
-            rrIntervalsMs: rr,
-          );
+        // Attempt to enrich with RR intervals via HealthKit heartbeat series (iOS only)
+        if (Platform.isIOS) {
+          try {
+            final rr = await HealthKitRRChannel.fetchHeartbeatSeries(
+              start: DateTime.now().subtract(const Duration(minutes: 30)),
+              end: DateTime.now(),
+            );
+            if (rr.isNotEmpty) {
+              return WearMetrics(
+                timestamp: metrics.timestamp,
+                deviceId: metrics.deviceId,
+                source: metrics.source,
+                metrics: metrics.metrics,
+                meta: metrics.meta,
+                rrIntervalsMs: rr,
+              );
+            }
+          } catch (e) {
+            // RR intervals are optional, continue without them
+            logger.debug('Could not fetch RR intervals: $e');
+          }
         }
       }
 
       return metrics;
     } catch (e) {
-      print('HealthKit read error: $e');
+      logger.error('HealthKit read error', e);
       return null;
     }
   }

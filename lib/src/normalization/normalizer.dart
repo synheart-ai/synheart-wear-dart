@@ -9,7 +9,7 @@ class NormalizerConfig {
   const NormalizerConfig({
     this.preferLatestData = true,
     this.mergeMetricsFromMultipleSources = true,
-    this.maxDataAge = const Duration(hours: 12),
+    this.maxDataAge = const Duration(days: 30),
   });
 }
 

@@ -1,5 +1,5 @@
 /// Garmin Cloud Provider for Synheart Wear SDK
-/// 
+///
 /// Connects to Garmin Health API via backend connector service.
 /// Implements OAuth flow and data fetching per RFC-0002.
 
@@ -25,12 +25,12 @@ class GarminProvider {
   });
 
   /// Launch OAuth consent flow
-  /// 
+  ///
   /// Opens browser/mobile app for user authorization
   Future<void> connect(BuildContext context) async {
     final state = _userId ?? DateTime.now().millisecondsSinceEpoch.toString();
     final redirectUri = this.redirectUri ?? 'synheart://oauth/callback';
-    
+
     // Get authorization URL from backend
     final authUrlResponse = await http.get(
       Uri.parse('$baseUrl/v1/garmin-cloud/oauth/authorize')
@@ -41,7 +41,8 @@ class GarminProvider {
     );
 
     if (authUrlResponse.statusCode != 200) {
-      throw NetworkError('Failed to get authorization URL: ${authUrlResponse.body}');
+      throw NetworkError(
+          'Failed to get authorization URL: ${authUrlResponse.body}');
     }
 
     final authData = json.decode(authUrlResponse.body);
@@ -51,7 +52,7 @@ class GarminProvider {
     final uri = Uri.parse(authorizationUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-      
+
       // Wait for callback (in real app, handle deep link)
       await _handleOAuthCallback(context, state, redirectUri);
     } else {
@@ -70,7 +71,8 @@ class GarminProvider {
   }
 
   /// Connect with authorization code (for handling OAuth callback)
-  Future<void> connectWithCode(String code, String state, String redirectUri) async {
+  Future<void> connectWithCode(
+      String code, String state, String redirectUri) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/v1/garmin-cloud/oauth/callback'),
@@ -124,7 +126,8 @@ class GarminProvider {
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as List;
         return data
-            .map((d) => _convertGarminDailyToWearMetrics(d as Map<String, Object?>))
+            .map((d) =>
+                _convertGarminDailyToWearMetrics(d as Map<String, Object?>))
             .toList();
       } else {
         throw NetworkError('Failed to fetch dailies: ${response.statusCode}');
@@ -160,7 +163,8 @@ class GarminProvider {
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as List;
         return data
-            .map((s) => _convertGarminSleepToWearMetrics(s as Map<String, Object?>))
+            .map((s) =>
+                _convertGarminSleepToWearMetrics(s as Map<String, Object?>))
             .toList();
       } else {
         throw NetworkError('Failed to fetch sleeps: ${response.statusCode}');
@@ -202,10 +206,12 @@ class GarminProvider {
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as List;
         return data
-            .map((a) => _convertGarminActivityToWearMetrics(a as Map<String, Object?>))
+            .map((a) =>
+                _convertGarminActivityToWearMetrics(a as Map<String, Object?>))
             .toList();
       } else {
-        throw NetworkError('Failed to fetch activities: ${response.statusCode}');
+        throw NetworkError(
+            'Failed to fetch activities: ${response.statusCode}');
       }
     } catch (e) {
       if (e is NetworkError || e is SynheartWearError) rethrow;
@@ -247,7 +253,8 @@ class GarminProvider {
   String? get userId => _userId;
 
   /// Convert Garmin daily summary to WearMetrics
-  WearMetrics _convertGarminDailyToWearMetrics(Map<String, Object?> garminData) {
+  WearMetrics _convertGarminDailyToWearMetrics(
+      Map<String, Object?> garminData) {
     return WearMetrics(
       timestamp: DateTime.parse(garminData['calendarDate'] as String),
       deviceId: 'garmin_${_userId ?? "unknown"}',
@@ -262,10 +269,12 @@ class GarminProvider {
   }
 
   /// Convert Garmin sleep data to WearMetrics
-  WearMetrics _convertGarminSleepToWearMetrics(Map<String, Object?> garminData) {
+  WearMetrics _convertGarminSleepToWearMetrics(
+      Map<String, Object?> garminData) {
     return WearMetrics(
-      timestamp: DateTime.parse(garminData['sleepStartTimestampGMT'] as String? ?? 
-                                 DateTime.now().toIso8601String()),
+      timestamp: DateTime.parse(
+          garminData['sleepStartTimestampGMT'] as String? ??
+              DateTime.now().toIso8601String()),
       deviceId: 'garmin_${_userId ?? "unknown"}',
       source: 'garmin',
       metrics: {
@@ -276,7 +285,8 @@ class GarminProvider {
   }
 
   /// Convert Garmin activity to WearMetrics
-  WearMetrics _convertGarminActivityToWearMetrics(Map<String, Object?> garminData) {
+  WearMetrics _convertGarminActivityToWearMetrics(
+      Map<String, Object?> garminData) {
     final startTime = garminData['startTimeInSeconds'] as int?;
     return WearMetrics(
       timestamp: startTime != null
@@ -314,4 +324,3 @@ class GarminProvider {
     _userId = metadata['garmin_user_id'] as String?;
   }
 }
-

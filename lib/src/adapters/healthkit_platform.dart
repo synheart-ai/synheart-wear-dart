@@ -6,10 +6,10 @@ class HealthKitPlatform {
   /// Request permissions using health package (v13.2.1)
   static Future<bool> requestPermissions() async {
     if (!Platform.isIOS) return false;
-    
+
     final isAvailable = await HealthAdapter.isAvailable();
     if (!isAvailable) return false;
-    
+
     // Request basic permissions for heart rate and HRV
     return await HealthAdapter.requestPermissions({
       PermissionType.heartRate,
@@ -26,11 +26,11 @@ class HealthKitPlatform {
   /// Get current heart rate
   static Future<double?> getCurrentHeartRate() async {
     if (!Platform.isIOS) return null;
-    
+
     final dataPoints = await HealthAdapter.readHealthData({
       PermissionType.heartRate,
     });
-    
+
     final metrics = HealthAdapter.convertToWearMetrics(dataPoints);
     return metrics?.getMetric(MetricType.hr)?.toDouble();
   }
@@ -38,15 +38,15 @@ class HealthKitPlatform {
   /// Get current HRV
   static Future<double?> getCurrentHRV() async {
     if (!Platform.isIOS) return null;
-    
+
     final dataPoints = await HealthAdapter.readHealthData({
       PermissionType.heartRateVariability,
     });
-    
+
     final metrics = HealthAdapter.convertToWearMetrics(dataPoints);
     return metrics?.getMetric(MetricType.hrvSdnn)?.toDouble();
   }
-  
+
   /// Get permission status for specific types (v13.2.1 feature)
   static Future<Map<PermissionType, bool>> getPermissionStatus(
     Set<PermissionType> permissions,

@@ -21,7 +21,7 @@ jobs:
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
         with:
-          dart-version: "3.4.0"
+          dart-version: "3.8.0"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2

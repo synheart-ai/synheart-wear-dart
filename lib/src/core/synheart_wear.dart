@@ -9,6 +9,7 @@ import '../adapters/fitbit.dart';
 import 'config.dart';
 import 'consent_manager.dart';
 import 'local_cache.dart';
+import 'logger.dart';
 
 /// Main SynheartWear SDK class implementing RFC specifications
 class SynheartWear {
@@ -51,7 +52,11 @@ class SynheartWear {
   }
 
   /// Read current metrics from all enabled adapters
-  Future<WearMetrics> readMetrics({bool isRealTime = false}) async {
+  Future<WearMetrics> readMetrics({
+    bool isRealTime = false,
+    DateTime? startTime,
+    DateTime? endTime,
+  }) async {
     if (!_initialized) {
       await initialize();
     }
@@ -64,21 +69,30 @@ class SynheartWear {
       final adapterData = <WearMetrics?>[];
       for (final adapter in _enabledAdapters()) {
         try {
-          final data = await adapter.readSnapshot(isRealTime: isRealTime);
+          final data = await adapter.readSnapshot(
+            isRealTime: isRealTime,
+            startTime: startTime,
+            endTime: endTime,
+          );
           adapterData.add(data);
         } catch (e) {
           // Keep non-fatal, tag by adapter id
-          print('${adapter.id} error: $e');
+          logWarning('${adapter.id} adapter error', e);
         }
       }
 
       // Normalize and merge data
       final mergedData = _normalizer.mergeSnapshots(adapterData);
 
-      // Validate data quality
-      if (!_normalizer.validateMetrics(mergedData)) {
+      // Validate data quality - but allow empty metrics if permissions are granted
+      // (simulators may not have actual health data)
+      if (mergedData.metrics.isNotEmpty &&
+          !_normalizer.validateMetrics(mergedData)) {
         throw SynheartWearError('Invalid metrics data received');
       }
+
+      // If no data is available but permissions are granted, return empty metrics
+      // This is acceptable for simulators or when no data has been recorded yet
 
       // Cache data if enabled
       if (config.enableLocalCaching) {
@@ -195,10 +209,12 @@ class SynheartWear {
   }
 
   /// Get required permissions based on enabled adapters
+  /// Uses platform-specific permissions (e.g., excludes HRV on Android)
   Set<PermissionType> _getRequiredPermissions() {
     final permissions = <PermissionType>{};
     for (final adapter in _enabledAdapters()) {
-      permissions.addAll(adapter.supportedPermissions);
+      // Use platform-specific permissions instead of all supported permissions
+      permissions.addAll(adapter.getPlatformSupportedPermissions());
     }
     return permissions;
   }

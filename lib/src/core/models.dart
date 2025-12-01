@@ -5,6 +5,7 @@ enum MetricType {
   hrvSdnn,
   steps,
   calories,
+  distance, // Add this
   stress,
 }
 
@@ -93,6 +94,8 @@ class WearMetrics {
         return metrics['steps'];
       case MetricType.calories:
         return metrics['calories'];
+      case MetricType.distance: // Add this
+        return metrics['distance'];
       case MetricType.stress:
         return metrics['stress'];
     }

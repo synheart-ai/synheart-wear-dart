@@ -1,14 +1,24 @@
 name: Publish to pub.dev
 
+# CI/CD temporarily disabled - doing everything manually for now
+# Will re-enable in the future
+# on:
+#   release:
+#     types: [created]
+#   workflow_dispatch:
+#     inputs:
+#       version:
+#         description: "Version to publish (e.g., 0.2.0)"
+#         required: true
+#         type: string
+
+# Disable workflow by using a condition that never runs
 on:
-  release:
-    types: [created]
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to publish (e.g., 0.2.0)"
-        required: true
-        type: string
+      skip:
+        description: 'Publishing disabled - use manual processes'
+        required: false
 
 jobs:
   publish:

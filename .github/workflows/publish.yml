@@ -1,14 +1,9 @@
 name: Publish to pub.dev
 
 on:
-  release:
-    types: [created]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to publish (e.g., 0.2.0)"
-        required: true
-        type: string
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
   publish:
@@ -24,68 +19,23 @@ jobs:
           flutter-version: "3.32.0"
           channel: "stable"
 
-      - name: Verify SDK versions
-        run: |
-          echo "Dart SDK version: $(dart --version)"
-          echo "Flutter SDK version: $(flutter --version | head -n 1)"
-
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Verify version
-        id: verify_version
+      - name: Verify version matches
         run: |
-          if [ "${{ github.event_name }}" == "release" ]; then
-            # Extract version from release tag (remove 'v' prefix if present)
-            RELEASE_TAG="${{ github.event.release.tag_name }}"
-            VERSION="${RELEASE_TAG#v}"
-          else
-            # Use manual input version
-            VERSION="${{ github.event.inputs.version }}"
-          fi
-
-            # Get version from pubspec.yaml
-          PUBSPEC_VERSION=$(grep -E '^\s*version:\s*' pubspec.yaml | sed -E 's/^\s*version:\s*//' | sed -E 's/\s*$//' | head -n 1)
-
-          if [ -z "$PUBSPEC_VERSION" ]; then
-            echo "❌ Failed to extract version from pubspec.yaml"
-            exit 1
-          fi
-
-          echo "Release version: $VERSION"
-          echo "Pubspec version: $PUBSPEC_VERSION"
-
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG_NAME#v}"
+          PUBSPEC_VERSION=$(grep -E '^\s*version:\s*' pubspec.yaml | sed -E 's/^\s*version:\s*//' | tr -d ' ')
+          
           if [ "$VERSION" != "$PUBSPEC_VERSION" ]; then
-            echo "❌ Version mismatch! Release tag version ($VERSION) does not match pubspec.yaml version ($PUBSPEC_VERSION)"
+            echo "❌ Version mismatch! Tag ($VERSION) != pubspec.yaml ($PUBSPEC_VERSION)"
             exit 1
           fi
-
-          echo "✅ Version matches!"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Version matches: $VERSION"
 
       - name: Validate package
-        run: |
-          flutter pub publish --dry-run
-
-      - name: Setup pub credentials
-        env:
-          PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
-        run: |
-          if [ -z "$PUB_CREDENTIALS" ]; then
-            echo "⚠️ PUB_CREDENTIALS secret not found. Skipping publish."
-            echo "To enable publishing, add PUB_CREDENTIALS secret in repository settings."
-            exit 0
-          fi
-          mkdir -p ~/.pub-cache
-          echo -n "$PUB_CREDENTIALS" > ~/.pub-cache/credentials.json
-          chmod 600 ~/.pub-cache/credentials.json
+        run: flutter pub publish --dry-run
 
       - name: Publish to pub.dev
-        env:
-          PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
-        run: |
-          if [ -z "$PUB_CREDENTIALS" ]; then
-            echo "⚠️ PUB_CREDENTIALS secret not found. Skipping publish."
-            exit 0
-          fi
-          flutter pub publish --force
+        run: flutter pub publish --force

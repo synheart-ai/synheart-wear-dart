@@ -1,18 +1,17 @@
 import 'package:flutter/foundation.dart';
 
 /// Log levels for SDK logging
-enum LogLevel {
-  debug,
-  info,
-  warning,
-  error,
-}
+enum LogLevel { debug, info, warning, error }
 
 /// Logger interface for SDK logging
 /// Allows consumers to provide their own logger implementation
 abstract class SynheartLogger {
-  void log(LogLevel level, String message,
-      [Object? error, StackTrace? stackTrace]);
+  void log(
+    LogLevel level,
+    String message, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]);
 
   void debug(String message) => log(LogLevel.debug, message);
   void info(String message) => log(LogLevel.info, message);
@@ -38,8 +37,12 @@ class DefaultLogger implements SynheartLogger {
   });
 
   @override
-  void log(LogLevel level, String message,
-      [Object? error, StackTrace? stackTrace]) {
+  void log(
+    LogLevel level,
+    String message, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) {
     // Only log in debug mode, except for errors which should always be logged
     if (!kDebugMode && level != LogLevel.error) {
       return;

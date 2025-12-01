@@ -12,16 +12,19 @@ class LocalCache {
   static const String _metaFileName = 'meta.log';
 
   /// Store a session of wearable data
-  static Future<void> storeSession(WearMetrics data,
-      {bool enableEncryption = true}) async {
+  static Future<void> storeSession(
+    WearMetrics data, {
+    bool enableEncryption = true,
+  }) async {
     try {
       final cacheDir = await _getCacheDirectory();
       final sessionId = _generateSessionId(data);
       final sessionFile = File('${cacheDir.path}/$sessionId.json');
 
       // Only encrypt if encryption is enabled
-      final processedData =
-          enableEncryption ? await _encryptData(data.toJson()) : data.toJson();
+      final processedData = enableEncryption
+          ? await _encryptData(data.toJson())
+          : data.toJson();
 
       await sessionFile.writeAsString(jsonEncode(processedData));
 
@@ -89,8 +92,9 @@ class LocalCache {
   }
 
   /// Clear cached data older than specified duration
-  static Future<void> clearOldData(
-      {Duration maxAge = const Duration(days: 30)}) async {
+  static Future<void> clearOldData({
+    Duration maxAge = const Duration(days: 30),
+  }) async {
     try {
       final cacheDir = await _getCacheDirectory();
       if (!await cacheDir.exists()) return;
@@ -115,8 +119,9 @@ class LocalCache {
   }
 
   /// Get cache statistics
-  static Future<Map<String, Object?>> getCacheStats(
-      {bool? encryptionEnabled}) async {
+  static Future<Map<String, Object?>> getCacheStats({
+    bool? encryptionEnabled,
+  }) async {
     try {
       final cacheDir = await _getCacheDirectory();
       if (!await cacheDir.exists()) {
@@ -188,10 +193,13 @@ class LocalCache {
         'metrics_count': data.metrics.length,
       };
 
-      final existingContent =
-          await metaFile.exists() ? await metaFile.readAsString() : '';
-      final lines =
-          existingContent.split('\n').where((line) => line.isNotEmpty).toList();
+      final existingContent = await metaFile.exists()
+          ? await metaFile.readAsString()
+          : '';
+      final lines = existingContent
+          .split('\n')
+          .where((line) => line.isNotEmpty)
+          .toList();
       lines.add(jsonEncode(metaEntry));
 
       await metaFile.writeAsString(lines.join('\n'));
@@ -203,7 +211,8 @@ class LocalCache {
 
   /// Encrypt data (placeholder implementation)
   static Future<Map<String, Object?>> _encryptData(
-      Map<String, Object?> data) async {
+    Map<String, Object?> data,
+  ) async {
     try {
       return await EncryptionService.encryptData(data);
     } catch (e) {
@@ -213,7 +222,8 @@ class LocalCache {
 
   /// Decrypt data (placeholder implementation)
   static Future<Map<String, Object?>> _decryptData(
-      Map<String, Object?> encryptedData) async {
+    Map<String, Object?> encryptedData,
+  ) async {
     try {
       if (EncryptionService.isEncrypted(encryptedData)) {
         return await EncryptionService.decryptData(encryptedData);

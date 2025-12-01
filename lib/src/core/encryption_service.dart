@@ -39,7 +39,8 @@ class EncryptionService {
   static Uint8List _generateSecureKey() {
     final random = Random.secure();
     return Uint8List.fromList(
-        List.generate(_keyLength, (_) => random.nextInt(256)));
+      List.generate(_keyLength, (_) => random.nextInt(256)),
+    );
   }
 
   /// Get key file path
@@ -50,7 +51,8 @@ class EncryptionService {
 
   /// Encrypt data using AES-256
   static Future<Map<String, Object?>> encryptData(
-      Map<String, Object?> data) async {
+    Map<String, Object?> data,
+  ) async {
     if (_encrypter == null || _iv == null) {
       await initialize();
     }
@@ -68,7 +70,8 @@ class EncryptionService {
 
   /// Decrypt data using AES-256
   static Future<Map<String, Object?>> decryptData(
-      Map<String, Object?> encryptedData) async {
+    Map<String, Object?> encryptedData,
+  ) async {
     if (_encrypter == null) {
       await initialize();
     }

@@ -24,15 +24,17 @@ class SynheartWear {
 
   Timer? _hrvTimer; // Separate timer for HRV
 
-  SynheartWear(
-      {SynheartWearConfig? config, Map<DeviceAdapter, WearAdapter>? adapters})
-      : config = config ?? const SynheartWearConfig(),
-        _normalizer = Normalizer(),
-        _adapterRegistry = adapters ??
-            {
-              DeviceAdapter.appleHealthKit: AppleHealthKitAdapter(),
-              DeviceAdapter.fitbit: FitbitAdapter(),
-            };
+  SynheartWear({
+    SynheartWearConfig? config,
+    Map<DeviceAdapter, WearAdapter>? adapters,
+  }) : config = config ?? const SynheartWearConfig(),
+       _normalizer = Normalizer(),
+       _adapterRegistry =
+           adapters ??
+           {
+             DeviceAdapter.appleHealthKit: AppleHealthKitAdapter(),
+             DeviceAdapter.fitbit: FitbitAdapter(),
+           };
 
   /// Initialize the SDK with permissions and setup
   Future<void> initialize() async {
@@ -96,8 +98,10 @@ class SynheartWear {
 
       // Cache data if enabled
       if (config.enableLocalCaching) {
-        await LocalCache.storeSession(mergedData,
-            enableEncryption: config.enableEncryption);
+        await LocalCache.storeSession(
+          mergedData,
+          enableEncryption: config.enableEncryption,
+        );
       }
 
       return mergedData;
@@ -155,19 +159,18 @@ class SynheartWear {
   /// Get cache statistics
   Future<Map<String, Object?>> getCacheStats() async {
     if (!config.enableLocalCaching) {
-      return {
-        'enabled': false,
-        'encryption_enabled': false,
-      };
+      return {'enabled': false, 'encryption_enabled': false};
     }
 
     return await LocalCache.getCacheStats(
-        encryptionEnabled: config.enableEncryption);
+      encryptionEnabled: config.enableEncryption,
+    );
   }
 
   /// Clear old cached data
-  Future<void> clearOldCache(
-      {Duration maxAge = const Duration(days: 30)}) async {
+  Future<void> clearOldCache({
+    Duration maxAge = const Duration(days: 30),
+  }) async {
     if (!config.enableLocalCaching) return;
 
     await LocalCache.clearOldData(maxAge: maxAge);
@@ -179,8 +182,10 @@ class SynheartWear {
     String? reason,
   }) async {
     final requiredPermissions = permissions ?? _getRequiredPermissions();
-    return await ConsentManager.requestConsent(requiredPermissions,
-        reason: reason);
+    return await ConsentManager.requestConsent(
+      requiredPermissions,
+      reason: reason,
+    );
   }
 
   /// Check current permission status

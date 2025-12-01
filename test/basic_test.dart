@@ -50,8 +50,9 @@ void main() {
     });
 
     test('configuration works correctly', () {
-      final config =
-          SynheartWearConfig.withAdapters({DeviceAdapter.appleHealthKit});
+      final config = SynheartWearConfig.withAdapters({
+        DeviceAdapter.appleHealthKit,
+      });
       expect(config.isAdapterEnabled(DeviceAdapter.appleHealthKit), isTrue);
       expect(config.isAdapterEnabled(DeviceAdapter.fitbit), isFalse);
     });

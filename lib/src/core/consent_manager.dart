@@ -3,12 +3,7 @@ import '../core/models.dart';
 import 'logger.dart';
 
 /// Consent status for data access
-enum ConsentStatus {
-  notRequested,
-  granted,
-  denied,
-  revoked,
-}
+enum ConsentStatus { notRequested, granted, denied, revoked }
 
 /// Permission types for different data access levels
 enum PermissionType {
@@ -90,13 +85,15 @@ class ConsentManager {
     Set<PermissionType> permissions,
   ) async {
     try {
-      final platformStatus =
-          await HealthAdapter.getPermissionStatus(permissions);
+      final platformStatus = await HealthAdapter.getPermissionStatus(
+        permissions,
+      );
       final results = <PermissionType, ConsentStatus>{};
 
       for (final entry in platformStatus.entries) {
-        final status =
-            entry.value ? ConsentStatus.granted : ConsentStatus.denied;
+        final status = entry.value
+            ? ConsentStatus.granted
+            : ConsentStatus.denied;
         _permissions[entry.key] = status;
         if (entry.value) {
           _consentTimestamps[entry.key.name] = DateTime.now();

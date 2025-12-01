@@ -14,8 +14,6 @@ jobs:
   publish:
     name: Publish Package
     runs-on: ubuntu-latest
-    environment:
-      name: pub.dev
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -74,7 +72,7 @@ jobs:
             exit 0
           fi
           mkdir -p ~/.pub-cache
-          echo "$PUB_CREDENTIALS" > ~/.pub-cache/credentials.json
+          echo -n "$PUB_CREDENTIALS" > ~/.pub-cache/credentials.json
           chmod 600 ~/.pub-cache/credentials.json
 
       - name: Publish to pub.dev

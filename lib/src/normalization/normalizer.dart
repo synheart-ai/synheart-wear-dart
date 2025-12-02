@@ -1,6 +1,8 @@
 import '../core/models.dart';
 
 /// Configuration for the normalization engine
+///
+/// Controls how data from multiple wearable sources is merged and normalized.
 class NormalizerConfig {
   final bool preferLatestData;
   final bool mergeMetricsFromMultipleSources;

@@ -4,6 +4,13 @@ import 'health_adapter.dart';
 import 'wear_adapter.dart';
 import 'healthkit_rr_channel.dart';
 
+/// Adapter for Apple HealthKit (iOS) and Health Connect (Android)
+///
+/// Provides unified access to health data on both platforms:
+/// - iOS: Uses HealthKit API for all metrics including RR intervals
+/// - Android: Uses Health Connect API (supports HRV via RMSSD, distance via DELTA)
+///
+/// Supports heart rate, HRV, steps, calories, and distance metrics.
 class AppleHealthKitAdapter implements WearAdapter {
   @override
   String get id => 'apple_healthkit';

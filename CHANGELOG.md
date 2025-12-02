@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-12-26
+
+### Added
+
+- Comprehensive dartdoc documentation for all public APIs
+- Documentation for all public classes, enums, and methods
+- Enhanced enum documentation with detailed descriptions
+
+### Changed
+
+- Improved documentation coverage across the entire SDK
+- Updated LICENSE file with complete MIT License text
+
+### Fixed
+
+- Fixed incomplete LICENSE file
+- Added missing documentation to error classes (PermissionDeniedError, DeviceUnavailableError, NetworkError)
+- Added missing documentation to adapter classes (WearAdapter, FitbitAdapter, AppleHealthKitAdapter)
+- Added missing documentation to provider classes (WhoopProvider, SwipHooks)
+- Added documentation to all enum values (DeviceAdapter, ConsentStatus, PermissionType, MetricType)
+- Added repository field to pubspec.yaml for better pub.dev scoring
 
 ## [0.1.0] - 2025-10-27
 
@@ -84,3 +105,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [0.1.0]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.1.0
 [0.2.0]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.0
+[0.2.1]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.1

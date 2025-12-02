@@ -1,11 +1,24 @@
 /// Supported metric types as defined in the RFC schema
 enum MetricType {
+  /// Heart rate (beats per minute)
   hr,
+
+  /// Heart rate variability RMSSD (milliseconds)
   hrvRmssd,
+
+  /// Heart rate variability SDNN (milliseconds)
   hrvSdnn,
+
+  /// Step count
   steps,
+
+  /// Calories burned (kilocalories)
   calories,
-  distance, // Add this
+
+  /// Distance traveled (kilometers)
+  distance,
+
+  /// Stress level (arbitrary units)
   stress,
 }
 
@@ -22,16 +35,19 @@ class SynheartWearError implements Exception {
       'SynheartWearError: $message${code != null ? ' ($code)' : ''}';
 }
 
+/// Error thrown when health data permissions are denied by the user
 class PermissionDeniedError extends SynheartWearError {
   PermissionDeniedError(String message)
     : super(message, code: 'PERMISSION_DENIED');
 }
 
+/// Error thrown when a wearable device or health service is unavailable
 class DeviceUnavailableError extends SynheartWearError {
   DeviceUnavailableError(String message)
     : super(message, code: 'DEVICE_UNAVAILABLE');
 }
 
+/// Error thrown when network requests fail (e.g., cloud API calls)
 class NetworkError extends SynheartWearError {
   NetworkError(String message, [Exception? originalException])
     : super(

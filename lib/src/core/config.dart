@@ -1,14 +1,42 @@
-/// Supported device adapters
-enum DeviceAdapter { appleHealthKit, fitbit, garmin, whoop, samsungHealth }
+/// Supported device adapters for wearable data sources
+enum DeviceAdapter {
+  /// Apple HealthKit (iOS) and Health Connect (Android)
+  appleHealthKit,
+
+  /// Fitbit devices via Fitbit Web API
+  fitbit,
+
+  /// Garmin devices via Garmin Connect API
+  garmin,
+
+  /// Whoop devices via Whoop API
+  whoop,
+
+  /// Samsung Health devices
+  samsungHealth,
+}
 
 /// Configuration for the SynheartWear SDK
 class SynheartWearConfig {
+  /// Set of device adapters to enable for data collection
   final Set<DeviceAdapter> enabledAdapters;
+
+  /// Interval for heart rate streaming (default: 2 seconds)
   final Duration streamInterval;
+
+  /// Window size for HRV streaming (default: 5 seconds)
   final Duration hrvWindowSize;
+
+  /// Whether to enable local caching of health data
   final bool enableLocalCaching;
+
+  /// Whether to encrypt cached data using AES-256
   final bool enableEncryption;
+
+  /// Adapter-specific configuration map
   final Map<String, Object?> adapterConfig;
+
+  /// Optional custom path for encryption key storage
   final String? encryptionKeyPath;
 
   const SynheartWearConfig({

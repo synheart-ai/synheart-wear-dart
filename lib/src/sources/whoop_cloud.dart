@@ -5,6 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/logger.dart';
 
+/// Provider for Whoop cloud API integration
+///
+/// Handles OAuth 2.0 authentication and data fetching from Whoop devices.
+/// Supports cycles, recovery, sleep, and workout data retrieval.
 class WhoopProvider {
   // Storage keys
   static const String _userIdKey = 'whoop_user_id';

@@ -2,18 +2,45 @@ import '../adapters/health_adapter.dart';
 import '../core/models.dart';
 import 'logger.dart';
 
-/// Consent status for data access
-enum ConsentStatus { notRequested, granted, denied, revoked }
+/// Consent status for data access permissions
+enum ConsentStatus {
+  /// Permission has not been requested yet
+  notRequested,
 
-/// Permission types for different data access levels
+  /// Permission has been granted by the user
+  granted,
+
+  /// Permission has been denied by the user
+  denied,
+
+  /// Permission was previously granted but has been revoked
+  revoked,
+}
+
+/// Permission types for different health data access levels
 enum PermissionType {
+  /// Heart rate data (beats per minute)
   heartRate,
+
+  /// Heart rate variability data (RMSSD or SDNN)
   heartRateVariability,
+
+  /// Step count data
   steps,
+
+  /// Calories burned data
   calories,
-  distance, // Add this
+
+  /// Distance traveled data (kilometers)
+  distance,
+
+  /// Sleep data
   sleep,
+
+  /// Stress level data
   stress,
+
+  /// All available permissions
   all,
 }
 

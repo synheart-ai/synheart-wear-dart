@@ -17,7 +17,8 @@ class GarminProvider {
   static const String _redirectUriKey = 'sdk_redirect_uri';
 
   // Default values
-  static const String defaultBaseUrl = 'https://synheart-wear-service-leatest.onrender.com';
+  static const String defaultBaseUrl =
+      'https://synheart-wear-service-leatest.onrender.com';
   static const String defaultRedirectUri = 'synheart://oauth/callback';
 
   String baseUrl;
@@ -182,7 +183,7 @@ class GarminProvider {
       utf8.encode(jsonEncode(stateData)),
     ).replaceAll('=', '');
 
-    final serviceUrl = Uri.parse('https://synheart-wear-service-leatest.onrender.com/v1/garmin/oauth/authorize').replace(
+    final serviceUrl = Uri.parse('$baseUrl/v1/garmin/oauth/authorize').replace(
       queryParameters: {
         'app_id': appId,
         'redirect_uri': redirectUri ?? defaultRedirectUri,
@@ -251,6 +252,23 @@ class GarminProvider {
     if (success == 'true' && userID != null) {
       // Connection successful
       await saveUserId(userID);
+
+      // Validate data freshness after connection
+      try {
+        logWarning('🔍 Validating data freshness after Garmin connection...');
+        final testData = await _fetchData(
+          'dailies',
+          userID,
+          DateTime.now().subtract(const Duration(days: 7)),
+          DateTime.now(),
+        );
+        _validateDataFreshness(testData, 'Garmin connection');
+        logWarning('✅ Garmin connection validated: Data is fresh');
+      } catch (e) {
+        logWarning('⚠️ Garmin connection data validation failed: $e');
+        // Don't fail connection if validation fails, just log warning
+      }
+
       return userID;
     } else if (error != null) {
       // Connection failed
@@ -265,15 +283,14 @@ class GarminProvider {
     await saveUserId(userID);
   }
 
-  /// Convenience method for connection error
-  void onConnectionError(String error) {
+  /// Convenience method for connection error (matches documentation - async)
+  Future<void> onConnectionError(String error) async {
     throw Exception('Garmin connection error: $error');
   }
 
-  /// Connect method (for compatibility with WHOOP-style API)
-  /// Note: For Garmin, the actual connection happens via deep link callback
-  /// This method just starts the OAuth flow
-  Future<String> connect() async {
+  /// Connect method (matches documentation API)
+  /// Starts OAuth flow and returns encoded state
+  Future<String> connect([dynamic context]) async {
     final result = await startOAuthFlow();
     // Return the encoded state - the actual user_id will come from deep link callback
     return result['state'] ?? '';
@@ -304,94 +321,336 @@ class GarminProvider {
       throw Exception('Failed to fetch Garmin $summaryType: ${res.body}');
     }
 
-    return jsonDecode(res.body);
+    final data = jsonDecode(res.body);
+
+    // Validate data freshness
+    _validateDataFreshness(data, 'Garmin $summaryType fetch');
+
+    return data;
+  }
+
+  /// Extract latest timestamp from API response
+  /// Handles various response formats: array, object with data array, or single object
+  DateTime? _extractLatestTimestamp(Map<String, dynamic> response) {
+    try {
+      // Check if response has a 'data' array
+      if (response.containsKey('data') && response['data'] is List) {
+        final dataList = response['data'] as List;
+        if (dataList.isEmpty) return null;
+
+        DateTime? latest;
+        for (final item in dataList) {
+          if (item is Map<String, dynamic>) {
+            final timestamp = _extractTimestampFromItem(item);
+            if (timestamp != null &&
+                (latest == null || timestamp.isAfter(latest))) {
+              latest = timestamp;
+            }
+          }
+        }
+        return latest;
+      }
+
+      // Check if response is directly an array (wrapped in a map somehow)
+      // Or check for common timestamp fields
+      if (response.containsKey('timestamp')) {
+        return _parseTimestamp(response['timestamp']);
+      }
+
+      // Check for common array fields
+      for (final key in ['records', 'items', 'results', 'summaries']) {
+        if (response.containsKey(key) && response[key] is List) {
+          final list = response[key] as List;
+          if (list.isNotEmpty && list.first is Map<String, dynamic>) {
+            return _extractTimestampFromItem(
+              list.first as Map<String, dynamic>,
+            );
+          }
+        }
+      }
+
+      // If response itself might be an array (shouldn't happen but handle it)
+      // This case is unlikely but we'll return null if we can't find timestamp
+      return null;
+    } catch (e) {
+      logWarning('Error extracting timestamp from Garmin response: $e');
+      return null;
+    }
+  }
+
+  /// Extract timestamp from a single item (object)
+  DateTime? _extractTimestampFromItem(Map<String, dynamic> item) {
+    // Try common timestamp field names for Garmin
+    final timestampFields = [
+      'timestamp',
+      'created_at',
+      'start_time',
+      'end_time',
+      'date',
+      'calendarDate',
+      'startTimeInSeconds',
+      'endTimeInSeconds',
+    ];
+    for (final field in timestampFields) {
+      if (item.containsKey(field)) {
+        return _parseTimestamp(item[field]);
+      }
+    }
+    return null;
+  }
+
+  /// Parse timestamp from various formats
+  DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return null;
+      }
+    }
+    if (value is int) {
+      // Unix timestamp (seconds or milliseconds)
+      if (value > 1000000000000) {
+        // Milliseconds
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } else {
+        // Seconds
+        return DateTime.fromMillisecondsSinceEpoch(value * 1000);
+      }
+    }
+    return null;
+  }
+
+  /// Validate data freshness (within 24 hours)
+  void _validateDataFreshness(Map<String, dynamic> response, String context) {
+    final latestTimestamp = _extractLatestTimestamp(response);
+
+    if (latestTimestamp == null) {
+      logWarning('⚠️ $context: Could not extract timestamp from response');
+      return; // Don't fail if we can't extract timestamp
+    }
+
+    final dataAge = DateTime.now().difference(latestTimestamp);
+    const maxStaleAge = Duration(hours: 24);
+
+    // Handle timezone differences
+    final isFutureData = dataAge.isNegative;
+    final absoluteAge = isFutureData ? -dataAge : dataAge;
+
+    if (absoluteAge > maxStaleAge) {
+      final errorMessage =
+          'Garmin data is stale (${absoluteAge.inHours} hours old). '
+          'Please check if your wearable device is connected to get latest data.';
+      logWarning('❌ $context: $errorMessage');
+      throw Exception(errorMessage);
+    }
+
+    if (isFutureData) {
+      logWarning(
+        '⏰ $context: Data timestamp is ${absoluteAge.inHours} hours in the future (likely timezone difference) - treating as valid',
+      );
+    } else {
+      logWarning(
+        '✅ $context: Data is fresh (${absoluteAge.inHours} hours old)',
+      );
+    }
   }
 
   // ========== Data Fetching Methods (12 Summary Types) ==========
 
   /// Fetch daily summaries (steps, calories, heart rate, stress, body battery)
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchDailies({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('dailies', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('dailies', effectiveUserId, start, end);
+  }
 
   /// Fetch 15-minute granular activity periods
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchEpochs({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('epochs', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('epochs', effectiveUserId, start, end);
+  }
 
   /// Fetch sleep data (duration, levels, scores)
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchSleeps({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('sleeps', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('sleeps', effectiveUserId, start, end);
+  }
 
   /// Fetch detailed stress values and body battery events
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchStressDetails({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('stressDetails', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('stressDetails', effectiveUserId, start, end);
+  }
 
   /// Fetch heart rate variability metrics
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchHRV({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('hrv', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('hrv', effectiveUserId, start, end);
+  }
 
   /// Fetch user metrics (VO2 Max, Fitness Age)
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchUserMetrics({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('userMetrics', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('userMetrics', effectiveUserId, start, end);
+  }
 
   /// Fetch body composition (weight, BMI, body fat, etc.)
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchBodyComps({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('bodyComps', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('bodyComps', effectiveUserId, start, end);
+  }
 
   /// Fetch pulse oximetry data
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchPulseOx({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('pulseox', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('pulseox', effectiveUserId, start, end);
+  }
 
   /// Fetch respiration rate data
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchRespiration({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('respiration', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('respiration', effectiveUserId, start, end);
+  }
 
   /// Fetch health snapshot data
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchHealthSnapshot({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('healthSnapshot', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('healthSnapshot', effectiveUserId, start, end);
+  }
 
   /// Fetch blood pressure measurements
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchBloodPressures({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('bloodPressures', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('bloodPressures', effectiveUserId, start, end);
+  }
 
   /// Fetch skin temperature data
+  /// userId is optional, uses stored userId if not provided
   Future<Map<String, dynamic>> fetchSkinTemp({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
-  }) => _fetchData('skinTemp', userId, start, end);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetchData('skinTemp', effectiveUserId, start, end);
+  }
 
   // ========== Additional Garmin Methods ==========
 
@@ -423,6 +682,56 @@ class GarminProvider {
 
     final json = jsonDecode(res.body);
     return List<String>.from(json);
+  }
+
+  /// Request historical Garmin data (max 90 days per request)
+  /// Data is delivered asynchronously via webhooks
+  ///
+  /// [userId] - User ID (optional, uses stored userId if not provided)
+  /// [summaryType] - One of: dailies, epochs, sleeps, stressDetails, hrv,
+  ///   userMetrics, bodyComps, pulseox, respiration, healthSnapshot,
+  ///   bloodPressures, skinTemp
+  /// [start] - Start time (RFC3339 format)
+  /// [end] - End time (RFC3339 format, max 90 days range)
+  ///
+  /// Returns a map with status, message, user_id, summary_type, start, and end
+  Future<Map<String, dynamic>> requestBackfill({
+    String? userId,
+    required String summaryType,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+
+    final uri = Uri.parse(
+      '$baseUrl/v1/garmin/backfill/$effectiveUserId/$summaryType',
+    );
+    print('Garmin backfill request URI: $uri');
+    print('Garmin backfill request URI: $uri');
+    print('Garmin backfill request URI: $uri');
+    print('Garmin backfill request URI: $uri');
+
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'app_id': appId,
+        'start': start.toUtc().toIso8601String(),
+        'end': end.toUtc().toIso8601String(),
+      }),
+    );
+    print(res.body);
+
+    if (res.statusCode != 202) {
+      throw Exception('Failed to request backfill: ${res.body}');
+    }
+
+    return jsonDecode(res.body);
   }
 
   /// Disconnect Garmin integration

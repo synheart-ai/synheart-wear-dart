@@ -202,11 +202,19 @@ class WhoopProvider {
     return state;
   }
 
+  /// Connect method (matches documentation API)
+  /// Starts OAuth flow and returns state
+  Future<String> connect([dynamic context]) async {
+    return await startOAuthFlow();
+  }
+
   // 2. Exchange code – CORRECT ENDPOINT
-  Future<String> connectWithCode({
-    required String code,
-    required String state,
-  }) async {
+  /// Connect with authorization code (matches documentation signature)
+  Future<String> connectWithCode(
+    String code,
+    String state,
+    String redirectUri,
+  ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/v1/whoop/oauth/callback'),
       headers: {'Content-Type': 'application/json'},
@@ -228,41 +236,98 @@ class WhoopProvider {
       throw Exception("Missing user_id in callback response");
     }
 
+    // Auto-save userId
+    await saveUserId(userId);
+
+    // Validate data freshness after connection
+    try {
+      logWarning('🔍 Validating data freshness after WHOOP connection...');
+      final testData = await _fetch(
+        'recovery',
+        userId,
+        DateTime.now().subtract(const Duration(days: 7)),
+        DateTime.now(),
+        1, // Just fetch 1 record to check freshness
+        null,
+      );
+      _validateDataFreshness(testData, 'WHOOP connection');
+      logWarning('✅ WHOOP connection validated: Data is fresh');
+    } catch (e) {
+      logWarning('⚠️ WHOOP connection data validation failed: $e');
+      // Don't fail connection if validation fails, just log warning
+    }
+
     return userId;
   }
 
   // 3. Fetch methods – CORRECT PATH + app_id in query
+  /// Fetch recovery data (userId is optional, uses stored userId if not provided)
   Future<Map<String, dynamic>> fetchRecovery({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) => _fetch('recovery', userId, start, end, limit, cursor);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetch('recovery', effectiveUserId, start, end, limit, cursor);
+  }
 
+  /// Fetch sleep data (userId is optional, uses stored userId if not provided)
   Future<Map<String, dynamic>> fetchSleep({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) => _fetch('sleep', userId, start, end, limit, cursor);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetch('sleep', effectiveUserId, start, end, limit, cursor);
+  }
 
+  /// Fetch workouts data (userId is optional, uses stored userId if not provided)
   Future<Map<String, dynamic>> fetchWorkouts({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) => _fetch('workouts', userId, start, end, limit, cursor);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetch('workouts', effectiveUserId, start, end, limit, cursor);
+  }
 
+  /// Fetch cycles data (userId is optional, uses stored userId if not provided)
   Future<Map<String, dynamic>> fetchCycles({
-    required String userId,
+    String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) => _fetch('cycles', userId, start, end, limit, cursor);
+  }) {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+    return _fetch('cycles', effectiveUserId, start, end, limit, cursor);
+  }
 
   Future<Map<String, dynamic>> _fetch(
     String type,
@@ -287,7 +352,138 @@ class WhoopProvider {
     final res = await http.get(uri);
     logDebug('WHOOP data response: ${res.body}');
     if (res.statusCode != 200) throw Exception(res.body);
-    return jsonDecode(res.body);
+    final data = jsonDecode(res.body);
+
+    // Validate data freshness
+    _validateDataFreshness(data, 'WHOOP $type fetch');
+
+    return data;
+  }
+
+  /// Extract latest timestamp from API response
+  /// Handles various response formats: array, object with data array, or single object
+  DateTime? _extractLatestTimestamp(Map<String, dynamic> response) {
+    try {
+      // Check if response has a 'data' array
+      if (response.containsKey('data') && response['data'] is List) {
+        final dataList = response['data'] as List;
+        if (dataList.isEmpty) return null;
+
+        DateTime? latest;
+        for (final item in dataList) {
+          if (item is Map<String, dynamic>) {
+            final timestamp = _extractTimestampFromItem(item);
+            if (timestamp != null &&
+                (latest == null || timestamp.isAfter(latest))) {
+              latest = timestamp;
+            }
+          }
+        }
+        return latest;
+      }
+
+      // Check if response is directly an array (wrapped in a map somehow)
+      // Or check for common timestamp fields
+      if (response.containsKey('timestamp')) {
+        return _parseTimestamp(response['timestamp']);
+      }
+
+      // Check for common array fields
+      for (final key in ['records', 'items', 'results']) {
+        if (response.containsKey(key) && response[key] is List) {
+          final list = response[key] as List;
+          if (list.isNotEmpty && list.first is Map<String, dynamic>) {
+            return _extractTimestampFromItem(
+              list.first as Map<String, dynamic>,
+            );
+          }
+        }
+      }
+
+      // If response itself might be an array (shouldn't happen but handle it)
+      // This case is unlikely but we'll return null if we can't find timestamp
+      return null;
+    } catch (e) {
+      logWarning('Error extracting timestamp from WHOOP response: $e');
+      return null;
+    }
+  }
+
+  /// Extract timestamp from a single item (object)
+  DateTime? _extractTimestampFromItem(Map<String, dynamic> item) {
+    // Try common timestamp field names
+    final timestampFields = [
+      'timestamp',
+      'created_at',
+      'start_time',
+      'end_time',
+      'date',
+    ];
+    for (final field in timestampFields) {
+      if (item.containsKey(field)) {
+        return _parseTimestamp(item[field]);
+      }
+    }
+    return null;
+  }
+
+  /// Parse timestamp from various formats
+  DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return null;
+      }
+    }
+    if (value is int) {
+      // Unix timestamp (seconds or milliseconds)
+      if (value > 1000000000000) {
+        // Milliseconds
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } else {
+        // Seconds
+        return DateTime.fromMillisecondsSinceEpoch(value * 1000);
+      }
+    }
+    return null;
+  }
+
+  /// Validate data freshness (within 24 hours)
+  void _validateDataFreshness(Map<String, dynamic> response, String context) {
+    final latestTimestamp = _extractLatestTimestamp(response);
+
+    if (latestTimestamp == null) {
+      logWarning('⚠️ $context: Could not extract timestamp from response');
+      return; // Don't fail if we can't extract timestamp
+    }
+
+    final dataAge = DateTime.now().difference(latestTimestamp);
+    const maxStaleAge = Duration(hours: 24);
+
+    // Handle timezone differences
+    final isFutureData = dataAge.isNegative;
+    final absoluteAge = isFutureData ? -dataAge : dataAge;
+
+    if (absoluteAge > maxStaleAge) {
+      final errorMessage =
+          'WHOOP data is stale (${absoluteAge.inHours} hours old). '
+          'Please check if your wearable device is connected to get latest data.';
+      logWarning('❌ $context: $errorMessage');
+      throw Exception(errorMessage);
+    }
+
+    if (isFutureData) {
+      logWarning(
+        '⏰ $context: Data timestamp is ${absoluteAge.inHours} hours in the future (likely timezone difference) - treating as valid',
+      );
+    } else {
+      logWarning(
+        '✅ $context: Data is fresh (${absoluteAge.inHours} hours old)',
+      );
+    }
   }
 
   // 4. Disconnect

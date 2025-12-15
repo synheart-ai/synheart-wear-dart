@@ -97,7 +97,7 @@ class SynheartWear {
       // Check if data is stale (older than 24 hours)
       final dataAge = DateTime.now().difference(mergedTestData.timestamp);
       const maxStaleAge = Duration(
-        minutes: 24,
+        hours: 24,
       ); // Stricter threshold for initialization
 
       // Handle timezone differences (data timestamp might be slightly in the future)

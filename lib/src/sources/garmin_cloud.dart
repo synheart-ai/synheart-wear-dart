@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/logger.dart';
+import '../core/models.dart';
 
 /// Garmin Cloud Provider for Synheart Wear SDK
 ///
@@ -423,6 +424,212 @@ class GarminProvider {
     return null;
   }
 
+  /// Convert Garmin API response to list of WearMetrics
+  /// Extracts bio signals (HR, HRV, steps, calories, etc.) from API response
+  List<WearMetrics> _convertToWearMetricsList(
+    dynamic response,
+    String source,
+    String userId,
+  ) {
+    final List<WearMetrics> metricsList = [];
+
+    try {
+      // Handle if response is already a List
+      if (response is List) {
+        for (final item in response) {
+          if (item is Map<String, dynamic>) {
+            final metric = _convertSingleItemToWearMetrics(
+              item,
+              source,
+              userId,
+            );
+            if (metric != null) {
+              metricsList.add(metric);
+            }
+          }
+        }
+        return metricsList;
+      }
+
+      // Handle if response is a Map
+      if (response is! Map<String, dynamic>) {
+        return metricsList;
+      }
+
+      // Extract data array from response
+      List<dynamic>? dataList;
+      if (response.containsKey('data') && response['data'] is List) {
+        dataList = response['data'] as List;
+      } else if (response.containsKey('records') &&
+          response['records'] is List) {
+        dataList = response['records'] as List;
+      } else if (response.containsKey('summaries') &&
+          response['summaries'] is List) {
+        dataList = response['summaries'] as List;
+      } else if (response.containsKey('items') && response['items'] is List) {
+        dataList = response['items'] as List;
+      }
+
+      if (dataList == null || dataList.isEmpty) {
+        // If no array, try to convert single object
+        final singleMetric = _convertSingleItemToWearMetrics(
+          response,
+          source,
+          userId,
+        );
+        if (singleMetric != null) {
+          metricsList.add(singleMetric);
+        }
+        return metricsList;
+      }
+
+      // Convert each item in the array
+      for (final item in dataList) {
+        if (item is Map<String, dynamic>) {
+          final metric = _convertSingleItemToWearMetrics(item, source, userId);
+          if (metric != null) {
+            metricsList.add(metric);
+          }
+        }
+      }
+    } catch (e) {
+      logWarning('Error converting Garmin response to WearMetrics: $e');
+    }
+
+    return metricsList;
+  }
+
+  /// Convert a single Garmin API item to WearMetrics
+  WearMetrics? _convertSingleItemToWearMetrics(
+    Map<String, dynamic> item,
+    String source,
+    String userId,
+  ) {
+    try {
+      final metrics = <String, num?>{};
+      final meta = <String, Object?>{};
+
+      // Extract timestamp
+      DateTime? timestamp = _extractTimestampFromItem(item);
+      if (timestamp == null) {
+        // Try to use current time if no timestamp found
+        timestamp = DateTime.now();
+      }
+
+      // Extract bio signals from Garmin API response
+      // Garmin dailies typically contain: steps, calories, distance, heartRate, etc.
+
+      // Heart rate
+      if (item.containsKey('averageHeartRate')) {
+        metrics['hr'] = _toNum(item['averageHeartRate']);
+      } else if (item.containsKey('heartRate')) {
+        metrics['hr'] = _toNum(item['heartRate']);
+      } else if (item.containsKey('hr')) {
+        metrics['hr'] = _toNum(item['hr']);
+      } else if (item.containsKey('restingHeartRate')) {
+        metrics['hr'] = _toNum(item['restingHeartRate']);
+      }
+
+      // HRV
+      if (item.containsKey('hrv')) {
+        final hrv = _toNum(item['hrv']);
+        metrics['hrv_rmssd'] = hrv;
+        metrics['hrv_sdnn'] = hrv;
+      } else if (item.containsKey('hrvRmssd')) {
+        metrics['hrv_rmssd'] = _toNum(item['hrvRmssd']);
+      } else if (item.containsKey('hrvSdnn')) {
+        metrics['hrv_sdnn'] = _toNum(item['hrvSdnn']);
+      } else if (item.containsKey('hrv_rmssd')) {
+        metrics['hrv_rmssd'] = _toNum(item['hrv_rmssd']);
+      } else if (item.containsKey('hrv_sdnn')) {
+        metrics['hrv_sdnn'] = _toNum(item['hrv_sdnn']);
+      }
+
+      // Steps
+      if (item.containsKey('steps')) {
+        metrics['steps'] = _toNum(item['steps']);
+      } else if (item.containsKey('stepCount')) {
+        metrics['steps'] = _toNum(item['stepCount']);
+      } else if (item.containsKey('totalSteps')) {
+        metrics['steps'] = _toNum(item['totalSteps']);
+      }
+
+      // Calories
+      if (item.containsKey('calories')) {
+        metrics['calories'] = _toNum(item['calories']);
+      } else if (item.containsKey('activeKilocalories')) {
+        metrics['calories'] = _toNum(item['activeKilocalories']);
+      } else if (item.containsKey('totalKilocalories')) {
+        metrics['calories'] = _toNum(item['totalKilocalories']);
+      }
+
+      // Distance (Garmin typically returns in meters, convert to km)
+      if (item.containsKey('distanceInMeters')) {
+        final meters = _toNum(item['distanceInMeters']);
+        if (meters != null) {
+          metrics['distance'] = meters / 1000.0;
+        }
+      } else if (item.containsKey('distance')) {
+        // Check if already in km or meters
+        final distance = _toNum(item['distance']);
+        if (distance != null) {
+          // Assume meters if value is large (>1000), otherwise assume km
+          metrics['distance'] = distance > 1000 ? distance / 1000.0 : distance;
+        }
+      }
+
+      // Stress (from stress level or body battery)
+      if (item.containsKey('stressLevel')) {
+        metrics['stress'] = _toNum(item['stressLevel']);
+      } else if (item.containsKey('stress')) {
+        metrics['stress'] = _toNum(item['stress']);
+      } else if (item.containsKey('bodyBattery')) {
+        // Use body battery as inverse stress (lower battery = higher stress)
+        final battery = _toNum(item['bodyBattery']);
+        if (battery != null) {
+          metrics['stress'] = 100 - battery;
+        }
+      }
+
+      // Store original Garmin data in meta for reference
+      meta['garmin_data'] = item;
+      meta['synced'] = true;
+      meta['source_type'] = 'garmin_cloud';
+
+      // Store additional Garmin-specific metrics in meta
+      if (item.containsKey('bodyBattery')) {
+        meta['body_battery'] = item['bodyBattery'];
+      }
+      if (item.containsKey('vo2Max')) {
+        meta['vo2_max'] = item['vo2Max'];
+      }
+      if (item.containsKey('fitnessAge')) {
+        meta['fitness_age'] = item['fitnessAge'];
+      }
+
+      return WearMetrics(
+        timestamp: timestamp,
+        deviceId: 'garmin_$userId',
+        source: source,
+        metrics: metrics,
+        meta: meta,
+      );
+    } catch (e) {
+      logWarning('Error converting Garmin item to WearMetrics: $e');
+      return null;
+    }
+  }
+
+  /// Helper to safely convert dynamic value to num
+  num? _toNum(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value;
+    if (value is String) {
+      return num.tryParse(value);
+    }
+    return null;
+  }
+
   /// Validate data freshness (within 24 hours)
   void _validateDataFreshness(Map<String, dynamic> response, String context) {
     final latestTimestamp = _extractLatestTimestamp(response);
@@ -462,194 +669,243 @@ class GarminProvider {
 
   /// Fetch daily summaries (steps, calories, heart rate, stress, body battery)
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchDailies({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchDailies({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('dailies', effectiveUserId, start, end);
+    final response = await _fetchData('dailies', effectiveUserId, start, end);
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch 15-minute granular activity periods
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchEpochs({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchEpochs({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('epochs', effectiveUserId, start, end);
+    final response = await _fetchData('epochs', effectiveUserId, start, end);
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch sleep data (duration, levels, scores)
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchSleeps({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchSleeps({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('sleeps', effectiveUserId, start, end);
+    final response = await _fetchData('sleeps', effectiveUserId, start, end);
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch detailed stress values and body battery events
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchStressDetails({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchStressDetails({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('stressDetails', effectiveUserId, start, end);
+    final response = await _fetchData(
+      'stressDetails',
+      effectiveUserId,
+      start,
+      end,
+    );
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch heart rate variability metrics
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchHRV({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchHRV({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('hrv', effectiveUserId, start, end);
+    final response = await _fetchData('hrv', effectiveUserId, start, end);
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch user metrics (VO2 Max, Fitness Age)
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchUserMetrics({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchUserMetrics({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('userMetrics', effectiveUserId, start, end);
+    final response = await _fetchData(
+      'userMetrics',
+      effectiveUserId,
+      start,
+      end,
+    );
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch body composition (weight, BMI, body fat, etc.)
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchBodyComps({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchBodyComps({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('bodyComps', effectiveUserId, start, end);
+    final response = await _fetchData('bodyComps', effectiveUserId, start, end);
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch pulse oximetry data
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchPulseOx({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchPulseOx({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('pulseox', effectiveUserId, start, end);
+    final response = await _fetchData('pulseox', effectiveUserId, start, end);
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch respiration rate data
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchRespiration({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchRespiration({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('respiration', effectiveUserId, start, end);
+    final response = await _fetchData(
+      'respiration',
+      effectiveUserId,
+      start,
+      end,
+    );
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch health snapshot data
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchHealthSnapshot({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchHealthSnapshot({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('healthSnapshot', effectiveUserId, start, end);
+    final response = await _fetchData(
+      'healthSnapshot',
+      effectiveUserId,
+      start,
+      end,
+    );
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch blood pressure measurements
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchBloodPressures({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchBloodPressures({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('bloodPressures', effectiveUserId, start, end);
+    final response = await _fetchData(
+      'bloodPressures',
+      effectiveUserId,
+      start,
+      end,
+    );
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   /// Fetch skin temperature data
   /// userId is optional, uses stored userId if not provided
-  Future<Map<String, dynamic>> fetchSkinTemp({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchSkinTemp({
     String? userId,
     DateTime? start,
     DateTime? end,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetchData('skinTemp', effectiveUserId, start, end);
+    final response = await _fetchData('skinTemp', effectiveUserId, start, end);
+    return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
   // ========== Additional Garmin Methods ==========

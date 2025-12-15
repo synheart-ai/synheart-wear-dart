@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/logger.dart';
+import '../core/models.dart';
 
 /// Provider for Whoop cloud API integration
 ///
@@ -262,71 +263,107 @@ class WhoopProvider {
 
   // 3. Fetch methods – CORRECT PATH + app_id in query
   /// Fetch recovery data (userId is optional, uses stored userId if not provided)
-  Future<Map<String, dynamic>> fetchRecovery({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchRecovery({
     String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetch('recovery', effectiveUserId, start, end, limit, cursor);
+    final response = await _fetch(
+      'recovery',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      cursor,
+    );
+    return _convertToWearMetricsList(response, 'whoop', effectiveUserId);
   }
 
   /// Fetch sleep data (userId is optional, uses stored userId if not provided)
-  Future<Map<String, dynamic>> fetchSleep({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchSleep({
     String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetch('sleep', effectiveUserId, start, end, limit, cursor);
+    final response = await _fetch(
+      'sleep',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      cursor,
+    );
+    return _convertToWearMetricsList(response, 'whoop', effectiveUserId);
   }
 
   /// Fetch workouts data (userId is optional, uses stored userId if not provided)
-  Future<Map<String, dynamic>> fetchWorkouts({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchWorkouts({
     String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetch('workouts', effectiveUserId, start, end, limit, cursor);
+    final response = await _fetch(
+      'workouts',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      cursor,
+    );
+    return _convertToWearMetricsList(response, 'whoop', effectiveUserId);
   }
 
   /// Fetch cycles data (userId is optional, uses stored userId if not provided)
-  Future<Map<String, dynamic>> fetchCycles({
+  /// Returns list of WearMetrics in unified format
+  Future<List<WearMetrics>> fetchCycles({
     String? userId,
     DateTime? start,
     DateTime? end,
     int limit = 100,
     String? cursor,
-  }) {
+  }) async {
     final effectiveUserId = userId ?? this.userId;
     if (effectiveUserId == null) {
       throw Exception(
         'userId is required. Either provide it or connect first.',
       );
     }
-    return _fetch('cycles', effectiveUserId, start, end, limit, cursor);
+    final response = await _fetch(
+      'cycles',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      cursor,
+    );
+    return _convertToWearMetricsList(response, 'whoop', effectiveUserId);
   }
 
   Future<Map<String, dynamic>> _fetch(
@@ -447,6 +484,196 @@ class WhoopProvider {
         // Seconds
         return DateTime.fromMillisecondsSinceEpoch(value * 1000);
       }
+    }
+    return null;
+  }
+
+  /// Convert WHOOP API response to list of WearMetrics
+  /// Extracts bio signals (HR, HRV, steps, calories, etc.) from API response
+  List<WearMetrics> _convertToWearMetricsList(
+    dynamic response,
+    String source,
+    String userId,
+  ) {
+    final List<WearMetrics> metricsList = [];
+
+    try {
+      // Handle if response is already a List
+      if (response is List) {
+        for (final item in response) {
+          if (item is Map<String, dynamic>) {
+            final metric = _convertSingleItemToWearMetrics(
+              item,
+              source,
+              userId,
+            );
+            if (metric != null) {
+              metricsList.add(metric);
+            }
+          }
+        }
+        return metricsList;
+      }
+
+      // Handle if response is a Map
+      if (response is! Map<String, dynamic>) {
+        return metricsList;
+      }
+
+      // Extract data array from response
+      List<dynamic>? dataList;
+      if (response.containsKey('data') && response['data'] is List) {
+        dataList = response['data'] as List;
+      } else if (response.containsKey('records') &&
+          response['records'] is List) {
+        dataList = response['records'] as List;
+      } else if (response.containsKey('items') && response['items'] is List) {
+        dataList = response['items'] as List;
+      }
+
+      if (dataList == null || dataList.isEmpty) {
+        // If no array, try to convert single object
+        final singleMetric = _convertSingleItemToWearMetrics(
+          response,
+          source,
+          userId,
+        );
+        if (singleMetric != null) {
+          metricsList.add(singleMetric);
+        }
+        return metricsList;
+      }
+
+      // Convert each item in the array
+      for (final item in dataList) {
+        if (item is Map<String, dynamic>) {
+          final metric = _convertSingleItemToWearMetrics(item, source, userId);
+          if (metric != null) {
+            metricsList.add(metric);
+          }
+        }
+      }
+    } catch (e) {
+      logWarning('Error converting WHOOP response to WearMetrics: $e');
+    }
+
+    return metricsList;
+  }
+
+  /// Convert a single WHOOP API item to WearMetrics
+  WearMetrics? _convertSingleItemToWearMetrics(
+    Map<String, dynamic> item,
+    String source,
+    String userId,
+  ) {
+    try {
+      final metrics = <String, num?>{};
+      final meta = <String, Object?>{};
+
+      // Extract timestamp
+      DateTime? timestamp = _extractTimestampFromItem(item);
+      if (timestamp == null) {
+        // Try to use current time if no timestamp found
+        timestamp = DateTime.now();
+      }
+
+      // Extract bio signals from WHOOP API response
+      // WHOOP recovery data typically contains: recovery_score, hr, hrv, etc.
+      if (item.containsKey('recovery_score')) {
+        meta['recovery_score'] = item['recovery_score'];
+      }
+      if (item.containsKey('strain_score')) {
+        meta['strain_score'] = item['strain_score'];
+      }
+      if (item.containsKey('sleep_score')) {
+        meta['sleep_score'] = item['sleep_score'];
+      }
+
+      // Heart rate
+      if (item.containsKey('heart_rate')) {
+        metrics['hr'] = _toNum(item['heart_rate']);
+      } else if (item.containsKey('hr')) {
+        metrics['hr'] = _toNum(item['hr']);
+      } else if (item.containsKey('heartRate')) {
+        metrics['hr'] = _toNum(item['heartRate']);
+      }
+
+      // HRV (WHOOP typically provides HRV in recovery data)
+      if (item.containsKey('hrv')) {
+        final hrv = _toNum(item['hrv']);
+        metrics['hrv_rmssd'] = hrv;
+        metrics['hrv_sdnn'] =
+            hrv; // Use same value for both if only one provided
+      } else if (item.containsKey('hrv_rmssd')) {
+        metrics['hrv_rmssd'] = _toNum(item['hrv_rmssd']);
+      } else if (item.containsKey('hrv_sdnn')) {
+        metrics['hrv_sdnn'] = _toNum(item['hrv_sdnn']);
+      }
+
+      // Steps (from workout data)
+      if (item.containsKey('steps')) {
+        metrics['steps'] = _toNum(item['steps']);
+      } else if (item.containsKey('step_count')) {
+        metrics['steps'] = _toNum(item['step_count']);
+      }
+
+      // Calories
+      if (item.containsKey('calories')) {
+        metrics['calories'] = _toNum(item['calories']);
+      } else if (item.containsKey('kilojoule')) {
+        // WHOOP sometimes uses kilojoules, convert to kcal (1 kJ = 0.239 kcal)
+        final kj = _toNum(item['kilojoule']);
+        if (kj != null) {
+          metrics['calories'] = kj * 0.239;
+        }
+      } else if (item.containsKey('calorie')) {
+        metrics['calories'] = _toNum(item['calorie']);
+      }
+
+      // Distance (from workout data)
+      if (item.containsKey('distance')) {
+        metrics['distance'] = _toNum(item['distance']);
+      } else if (item.containsKey('distance_meter')) {
+        // Convert meters to km
+        final meters = _toNum(item['distance_meter']);
+        if (meters != null) {
+          metrics['distance'] = meters / 1000.0;
+        }
+      }
+
+      // Stress (recovery score can be used as stress indicator)
+      if (item.containsKey('recovery_score')) {
+        final recovery = _toNum(item['recovery_score']);
+        if (recovery != null) {
+          // Invert recovery score as stress (lower recovery = higher stress)
+          metrics['stress'] = 100 - recovery;
+        }
+      }
+
+      // Store original WHOOP data in meta for reference
+      meta['whoop_data'] = item;
+      meta['synced'] = true;
+      meta['source_type'] = 'whoop_cloud';
+
+      return WearMetrics(
+        timestamp: timestamp,
+        deviceId: 'whoop_$userId',
+        source: source,
+        metrics: metrics,
+        meta: meta,
+      );
+    } catch (e) {
+      logWarning('Error converting WHOOP item to WearMetrics: $e');
+      return null;
+    }
+  }
+
+  /// Helper to safely convert dynamic value to num
+  num? _toNum(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value;
+    if (value is String) {
+      return num.tryParse(value);
     }
     return null;
   }

@@ -37,18 +37,86 @@ class SynheartWear {
            };
 
   /// Initialize the SDK with permissions and setup
+  ///
+  /// This method will:
+  /// 1. Request necessary permissions
+  /// 2. Initialize adapters
+  /// 3. Fetch and validate actual wearable data
+  /// 4. Verify data is not empty and not stale
+  ///
+  /// Throws [SynheartWearError] if:
+  /// - Permissions are denied
+  /// - No wearable data is available
+  /// - Latest data is stale (older than 24 hours)
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized) {
+      return;
+    }
 
     try {
       // Request necessary permissions
+
       await _requestPermissions();
 
       // Initialize adapters
+
       await _initializeAdapters();
+
+      final testData = <WearMetrics?>[];
+      for (final adapter in _enabledAdapters()) {
+        try {
+          // Try to fetch recent data (last 7 days)
+          final data = await adapter.readSnapshot(
+            isRealTime: false,
+            startTime: DateTime.now().subtract(const Duration(days: 7)),
+            endTime: DateTime.now(),
+          );
+          if (data != null) {
+          } else {}
+
+          testData.add(data);
+        } catch (e) {
+          // Log warning but continue checking other adapters
+        }
+      }
+
+      // Merge and validate the test data
+
+      final mergedTestData = _normalizer.mergeSnapshots(testData);
+
+      // Check if data is empty
+
+      if (!mergedTestData.hasValidData || mergedTestData.metrics.isEmpty) {
+        // if (mergedTestData.hasValidData || mergedTestData.metrics.isNotEmpty) {
+        throw SynheartWearError(
+          'No wearable data available. Please check if your wearable device is connected and syncing data.',
+          code: 'NO_WEARABLE_DATA',
+        );
+      }
+
+      // Check if data is stale (older than 24 hours)
+      final dataAge = DateTime.now().difference(mergedTestData.timestamp);
+      const maxStaleAge = Duration(
+        hours: 24,
+      ); // Stricter threshold for initialization
+
+      // Handle timezone differences (data timestamp might be slightly in the future)
+      final isFutureData = dataAge.isNegative;
+      final absoluteAge = isFutureData ? -dataAge : dataAge;
+
+      if (isFutureData) {
+      } else {}
+
+      if (absoluteAge > maxStaleAge) {
+        throw SynheartWearError(
+          'Latest data is stale (${absoluteAge.inHours} hours old). Please check if your wearable device is connected to get latest data.',
+          code: 'STALE_DATA',
+        );
+      }
 
       _initialized = true;
     } catch (e) {
+      if (e is SynheartWearError) rethrow;
       throw SynheartWearError('Failed to initialize SynheartWear: $e');
     }
   }
@@ -86,15 +154,16 @@ class SynheartWear {
       // Normalize and merge data
       final mergedData = _normalizer.mergeSnapshots(adapterData);
 
-      // Validate data quality - but allow empty metrics if permissions are granted
-      // (simulators may not have actual health data)
+      // Validate data quality
+      // Note: Data availability is validated during initialize(), but empty data
+      // may still occur if device disconnects after initialization
       if (mergedData.metrics.isNotEmpty &&
           !_normalizer.validateMetrics(mergedData)) {
         throw SynheartWearError('Invalid metrics data received');
       }
 
-      // If no data is available but permissions are granted, return empty metrics
-      // This is acceptable for simulators or when no data has been recorded yet
+      // If no data is available, return empty metrics
+      // This may occur if device disconnected after initialization
 
       // Cache data if enabled
       if (config.enableLocalCaching) {

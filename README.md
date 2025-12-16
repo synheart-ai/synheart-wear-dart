@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/synheart-ai/synheart_wear)
 [![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.22.0-blue.svg)](https://flutter.dev)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
 > **Unified wearable SDK** for Flutter — Stream HR, HRV, steps, calories, and distance from Apple Watch, Fitbit, Garmin, Whoop, and Samsung devices with a single, standardized API.
 
@@ -454,3 +454,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Made with ❤️ by the Synheart AI Team**
 
 _Technology with a heartbeat._
+
+
+
+## Patent Pending Notice
+
+This project is provided under an open-source license. Certain underlying systems, methods, and architectures described or implemented herein may be covered by one or more pending patent applications.
+
+Nothing in this repository grants any license, express or implied, to any patents or patent applications, except as provided by the applicable open-source license.

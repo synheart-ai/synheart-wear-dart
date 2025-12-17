@@ -1,6 +1,6 @@
 # Synheart Wear
 
-[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/synheart-ai/synheart_wear)
+[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](https://github.com/synheart-ai/synheart_wear)
 [![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.22.0-blue.svg)](https://flutter.dev)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
@@ -23,7 +23,7 @@
 
 ```yaml
 dependencies:
-  synheart_wear: ^0.2.1
+  synheart_wear: ^0.2.2
 ```
 
 ```bash
@@ -454,8 +454,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Made with ❤️ by the Synheart AI Team**
 
 _Technology with a heartbeat._
-
-
 
 ## Patent Pending Notice
 

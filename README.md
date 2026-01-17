@@ -1,6 +1,6 @@
 # Synheart Wear
 
-[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](https://github.com/synheart-ai/synheart_wear)
+[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](https://github.com/synheart-ai/synheart_wear)
 [![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.22.0-blue.svg)](https://flutter.dev)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
@@ -23,7 +23,7 @@
 
 ```yaml
 dependencies:
-  synheart_wear: ^0.2.2
+  synheart_wear: ^0.2.3
 ```
 
 ```bash
@@ -31,6 +31,8 @@ flutter pub get
 ```
 
 ### Basic Usage
+
+**Recommended Pattern (Explicit Permission Control):**
 
 ```dart
 import 'dart:io';
@@ -40,17 +42,19 @@ import 'package:synheart_wear/synheart_wear.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize SDK
+  // Step 1: Create SDK instance
   final adapters = <DeviceAdapter>{
     DeviceAdapter.appleHealthKit, // Uses Health Connect on Android
   };
 
+  // Use withAdapters() to explicitly specify which adapters to enable
+  // Note: Default constructor includes fitbit by default, so use withAdapters() for clarity
   final synheart = SynheartWear(
     config: SynheartWearConfig.withAdapters(adapters),
   );
 
-  // Request permissions & initialize
-  await synheart.requestPermissions(
+  // Step 2: Request permissions (with reason for better UX)
+  final result = await synheart.requestPermissions(
     permissions: {
       PermissionType.heartRate,
       PermissionType.steps,
@@ -59,31 +63,65 @@ void main() async {
     reason: 'This app needs access to your health data.',
   );
 
-  await synheart.initialize();
-
-  // Read metrics
-  final metrics = await synheart.readMetrics();
-  print('HR: ${metrics.getMetric(MetricType.hr)} bpm');
-  print('Steps: ${metrics.getMetric(MetricType.steps)}');
+  // Step 3: Initialize SDK (validates permissions and data availability)
+  if (result.values.any((s) => s == ConsentStatus.granted)) {
+    try {
+      await synheart.initialize();
+      
+      // Step 4: Read metrics
+      final metrics = await synheart.readMetrics();
+      print('HR: ${metrics.getMetric(MetricType.hr)} bpm');
+      print('Steps: ${metrics.getMetric(MetricType.steps)}');
+    } on SynheartWearError catch (e) {
+      print('Initialization failed: $e');
+      // Handle errors: NO_WEARABLE_DATA, STALE_DATA, etc.
+    }
+  }
 }
 ```
+
+**Alternative Pattern (Simplified):**
+
+If you don't need to provide a custom reason, you can let `initialize()` handle permissions automatically:
+
+```dart
+final synheart = SynheartWear(
+  config: SynheartWearConfig.withAdapters({DeviceAdapter.appleHealthKit}),
+);
+
+// Initialize will request permissions internally if needed
+await synheart.initialize();
+final metrics = await synheart.readMetrics();
+```
+
+**Note:** `initialize()` validates that wearable data is available and not stale (>24 hours old). If no data is available or data is too old, it will throw a `SynheartWearError` with codes `NO_WEARABLE_DATA` or `STALE_DATA`.
 
 ### Real-Time Streaming
 
 ```dart
 // Stream heart rate every 5 seconds
-synheart.streamHR(interval: Duration(seconds: 5))
+// Note: Streams are created lazily when first listener subscribes
+// Multiple calls to streamHR() return the same stream controller
+final hrSubscription = synheart.streamHR(interval: Duration(seconds: 5))
   .listen((metrics) {
     final hr = metrics.getMetric(MetricType.hr);
     if (hr != null) print('Current HR: $hr bpm');
+  }, onError: (error) {
+    print('Stream error: $error');
   });
 
 // Stream HRV in 5-second windows
-synheart.streamHRV(windowSize: Duration(seconds: 5))
+final hrvSubscription = synheart.streamHRV(windowSize: Duration(seconds: 5))
   .listen((metrics) {
     final hrv = metrics.getMetric(MetricType.hrvRmssd);
     if (hrv != null) print('HRV RMSSD: $hrv ms');
+  }, onError: (error) {
+    print('HRV stream error: $error');
   });
+
+// Don't forget to cancel subscriptions when done
+// hrSubscription.cancel();
+// hrvSubscription.cancel();
 ```
 
 ## 📊 Data Schema
@@ -223,6 +261,63 @@ Add to `ios/Runner/Info.plist`:
 ## 📋 Detailed Sections
 
 <details>
+<summary><b>Initialization Flow & Best Practices</b></summary>
+
+### Recommended Initialization Pattern
+
+The SDK supports two initialization patterns:
+
+**1. Explicit Permission Control (Recommended):**
+```dart
+// Step 1: Create SDK instance
+final synheart = SynheartWear(
+  config: SynheartWearConfig.withAdapters({DeviceAdapter.appleHealthKit}),
+);
+
+// Step 2: Request permissions with reason
+final result = await synheart.requestPermissions(
+  permissions: {PermissionType.heartRate, PermissionType.steps},
+  reason: 'This app needs access to your health data.',
+);
+
+// Step 3: Initialize (validates permissions and data)
+if (result.values.any((s) => s == ConsentStatus.granted)) {
+  await synheart.initialize();
+}
+```
+
+**2. Automatic Permission Handling:**
+```dart
+// Let initialize() handle permissions automatically
+final synheart = SynheartWear(
+  config: SynheartWearConfig.withAdapters({DeviceAdapter.appleHealthKit}),
+);
+
+await synheart.initialize(); // Requests permissions internally if needed
+```
+
+### What `initialize()` Does
+
+The `initialize()` method:
+1. Requests permissions (if not already granted)
+2. Initializes all enabled adapters
+3. Validates that wearable data is available
+4. Checks that data is not stale (>24 hours old)
+
+**Important:** `initialize()` will throw `SynheartWearError` if:
+- No wearable data is available (`NO_WEARABLE_DATA`)
+- Latest data is older than 24 hours (`STALE_DATA`)
+- Permissions are denied (`PERMISSION_DENIED`)
+
+### Permission Request Behavior
+
+- Calling `requestPermissions()` before `initialize()` allows you to provide a custom reason
+- `initialize()` will also request permissions internally if not already granted
+- If permissions are already granted, `initialize()` will skip the permission request
+
+</details>
+
+<details>
 <summary><b>Data Schema Details</b></summary>
 
 ### Field Descriptions
@@ -253,19 +348,24 @@ Add to `ios/Runner/Info.plist`:
 <summary><b>Platform-Specific Permission Handling</b></summary>
 
 ```dart
+// Determine platform-specific permissions
 Set<PermissionType> permissions;
 if (Platform.isAndroid) {
+  // Android Health Connect limitations:
+  // - HRV: Only RMSSD supported (SDNN not available)
+  // - Distance: Not directly supported (would need DISTANCE_DELTA)
   permissions = {
     PermissionType.heartRate,
-    PermissionType.heartRateVariability, // RMSSD on Android
+    PermissionType.heartRateVariability, // Maps to RMSSD on Android
     PermissionType.steps,
     PermissionType.calories,
-    // Distance supported via DISTANCE_DELTA
+    // Note: Distance is not included as Health Connect doesn't support it
   };
 } else {
+  // iOS HealthKit supports all metrics
   permissions = {
     PermissionType.heartRate,
-    PermissionType.heartRateVariability,
+    PermissionType.heartRateVariability, // Supports both RMSSD and SDNN
     PermissionType.steps,
     PermissionType.calories,
     PermissionType.distance,
@@ -276,6 +376,14 @@ final result = await synheart.requestPermissions(
   permissions: permissions,
   reason: 'This app needs access to your health data.',
 );
+
+// Check if permissions were granted before initializing
+if (result.values.any((s) => s == ConsentStatus.granted)) {
+  await synheart.initialize();
+} else {
+  // Handle permission denial
+  print('Permissions were not granted');
+}
 ```
 
 </details>
@@ -312,6 +420,7 @@ class _HealthMonitorState extends State<HealthMonitor> {
 
   Future<void> _connect() async {
     try {
+      // Step 1: Request permissions
       final result = await _sdk.requestPermissions(
         permissions: {
           PermissionType.heartRate,
@@ -321,16 +430,35 @@ class _HealthMonitorState extends State<HealthMonitor> {
         reason: 'This app needs access to your health data.',
       );
 
+      // Step 2: Initialize if permissions granted
       if (result.values.any((s) => s == ConsentStatus.granted)) {
         await _sdk.initialize();
+        
+        // Step 3: Read initial metrics
         final metrics = await _sdk.readMetrics();
         setState(() {
           _isConnected = true;
           _latestMetrics = metrics;
         });
+      } else {
+        setState(() {
+          _isConnected = false;
+          // Show error: permissions denied
+        });
       }
+    } on SynheartWearError catch (e) {
+      // Handle SDK-specific errors (NO_WEARABLE_DATA, STALE_DATA, etc.)
+      print('SDK Error: $e');
+      setState(() {
+        _isConnected = false;
+        // Show error message
+      });
     } catch (e) {
+      // Handle other errors
       print('Error: $e');
+      setState(() {
+        _isConnected = false;
+      });
     }
   }
 
@@ -380,18 +508,47 @@ class _HealthMonitorState extends State<HealthMonitor> {
 
 ```dart
 try {
-  final metrics = await synheart.readMetrics();
-  if (metrics.hasValidData) {
-    print('Data available');
+  // Request permissions
+  final result = await synheart.requestPermissions(
+    permissions: {PermissionType.heartRate, PermissionType.steps},
+    reason: 'This app needs access to your health data.',
+  );
+
+  if (result.values.any((s) => s == ConsentStatus.granted)) {
+    // Initialize (may throw if no data or stale data)
+    await synheart.initialize();
+    
+    // Read metrics
+    final metrics = await synheart.readMetrics();
+    if (metrics.hasValidData) {
+      print('Data available');
+    }
   }
 } on PermissionDeniedError catch (e) {
   print('Permission denied: $e');
+  // User denied permissions - show message or retry
 } on DeviceUnavailableError catch (e) {
   print('Device unavailable: $e');
+  // Health data source not available - check device connection
 } on SynheartWearError catch (e) {
-  print('SDK error: $e');
+  // Handle SDK-specific errors
+  if (e.code == 'NO_WEARABLE_DATA') {
+    print('No wearable data available. Please check device connection.');
+  } else if (e.code == 'STALE_DATA') {
+    print('Data is stale. Please sync your wearable device.');
+  } else {
+    print('SDK error: $e');
+  }
+} catch (e) {
+  print('Unexpected error: $e');
 }
 ```
+
+**Common Error Codes:**
+- `NO_WEARABLE_DATA`: No health data available from connected devices
+- `STALE_DATA`: Latest data is older than 24 hours
+- `PERMISSION_DENIED`: User denied required permissions
+- `DEVICE_UNAVAILABLE`: Health data source is not available
 
 </details>
 

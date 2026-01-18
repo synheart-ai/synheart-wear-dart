@@ -111,6 +111,7 @@ class FluxFfi {
   static FluxFfi? _instance;
   static bool _loadAttempted = false;
   static String? _loadError;
+  static String? _overrideLibraryPath;
 
   final DynamicLibrary _lib;
 
@@ -200,40 +201,148 @@ class FluxFfi {
   /// Get the error message if the library failed to load
   static String? get loadError => _loadError;
 
+  /// Override the native library path for the current process.
+  ///
+  /// This must be called **before** first access to [instance]/[isAvailable].
+  /// (Once loading is attempted, Flux caches the result.)
+  ///
+  /// Useful for desktop apps that bundle the library in a custom location.
+  static void overrideLibraryPathForProcess(String path) {
+    _overrideLibraryPath = path;
+  }
+
+  /// Reset cached load state.
+  ///
+  /// Flux FFI uses a singleton + "load attempted" guard to avoid repeated
+  /// dynamic library loading attempts. Tests that download binaries at runtime
+  /// (or otherwise change library availability) can call this to force a reload.
+  static void resetForTesting() {
+    _instance = null;
+    _loadAttempted = false;
+    _loadError = null;
+    _overrideLibraryPath = null;
+  }
+
   /// Load the native library based on platform
   static DynamicLibrary _loadLibrary() {
+    final errors = <String>[];
+
+    DynamicLibrary tryOpen(String path) {
+      try {
+        return DynamicLibrary.open(path);
+      } catch (e) {
+        errors.add('$path -> $e');
+        rethrow;
+      }
+    }
+
+    // Allow overriding via API or env var (handy for desktop).
+    final envOverride = Platform.environment['SYNHEART_FLUX_LIB_PATH'];
+    final override = _overrideLibraryPath ?? envOverride;
+    if (override != null && override.trim().isNotEmpty) {
+      try {
+        return tryOpen(override.trim());
+      } catch (_) {
+        // fall through to normal search
+      }
+    }
+
     if (Platform.isAndroid) {
-      return DynamicLibrary.open('libsynheart_flux.so');
+      // Bundled via android/build.gradle (jniLibs).
+      return tryOpen('libsynheart_flux.so');
     } else if (Platform.isIOS) {
+      // Bundled via ios/synheart_wear.podspec (XCFramework); symbols are in-process.
       return DynamicLibrary.process();
     } else if (Platform.isMacOS) {
-      // Try app bundle first, then vendor directory
+      // Try app bundle first, then vendored locations (best-effort).
       try {
-        return DynamicLibrary.open('libsynheart_flux.dylib');
+        return tryOpen('libsynheart_flux.dylib');
       } catch (_) {
-        return DynamicLibrary.open(
-          'vendor/flux/desktop/mac/libsynheart_flux.dylib',
+        final lib = _tryOpenVendoredDesktopLib(
+          relativePath: 'vendor/flux/desktop/mac/macos-arm64/libsynheart_flux.dylib',
+          tryOpen: tryOpen,
         );
+        if (lib != null) return lib;
       }
     } else if (Platform.isLinux) {
       try {
-        return DynamicLibrary.open('libsynheart_flux.so');
+        return tryOpen('libsynheart_flux.so');
       } catch (_) {
-        return DynamicLibrary.open(
-          'vendor/flux/desktop/linux/libsynheart_flux.so',
+        final lib = _tryOpenVendoredDesktopLib(
+          relativePath: 'vendor/flux/desktop/linux/linux-x86_64/libsynheart_flux.so',
+          tryOpen: tryOpen,
         );
+        if (lib != null) return lib;
       }
     } else if (Platform.isWindows) {
       try {
-        return DynamicLibrary.open('synheart_flux.dll');
+        return tryOpen('synheart_flux.dll');
       } catch (_) {
-        return DynamicLibrary.open(
-          'vendor/flux/desktop/win/synheart_flux.dll',
+        final lib = _tryOpenVendoredDesktopLib(
+          relativePath: 'vendor/flux/desktop/win/synheart_flux.dll',
+          tryOpen: tryOpen,
         );
+        if (lib != null) return lib;
       }
     } else {
       throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
     }
+
+    // If we got here, we tried reasonable options but still failed.
+    throw StateError(
+      'Failed to load Synheart Flux native library. Attempts:\n'
+      '${errors.map((e) => '- $e').join('\n')}\n'
+      'Tip: set SYNHEART_FLUX_LIB_PATH to an absolute path of the library.',
+    );
+  }
+
+  static DynamicLibrary? _tryOpenVendoredDesktopLib({
+    required String relativePath,
+    required DynamicLibrary Function(String path) tryOpen,
+  }) {
+    // 1) Relative to current working directory (common for dev/tests).
+    try {
+      return tryOpen(relativePath);
+    } catch (_) {
+      // continue
+    }
+
+    // 2) Relative to a user-provided vendor directory (absolute or relative).
+    final vendorDir = Platform.environment['SYNHEART_FLUX_VENDOR_DIR'];
+    if (vendorDir != null && vendorDir.trim().isNotEmpty) {
+      final candidate = '${vendorDir.trim()}/${relativePath.replaceFirst('vendor/', '')}';
+      try {
+        return tryOpen(candidate);
+      } catch (_) {
+        // continue
+      }
+    }
+
+    // 3) Walk up from CWD to find a repo/package root that contains vendor/flux/.
+    final root = _findAncestorWithVendorFlux(Directory.current);
+    if (root != null) {
+      final candidate = '${root.path}/$relativePath';
+      try {
+        return tryOpen(candidate);
+      } catch (_) {
+        // continue
+      }
+    }
+
+    return null;
+  }
+
+  static Directory? _findAncestorWithVendorFlux(Directory start) {
+    var dir = start;
+    for (var i = 0; i < 12; i++) {
+      final vendorFlux = Directory('${dir.path}/vendor/flux');
+      if (vendorFlux.existsSync()) return dir;
+
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+    return null;
   }
 }
 

@@ -1,11 +1,24 @@
 /// Supported metric types as defined in the RFC schema
 enum MetricType {
+  /// Heart rate (beats per minute)
   hr,
+
+  /// Heart rate variability RMSSD (milliseconds)
   hrvRmssd,
+
+  /// Heart rate variability SDNN (milliseconds)
   hrvSdnn,
+
+  /// Step count
   steps,
+
+  /// Calories burned (kilocalories)
   calories,
-  distance, // Add this
+
+  /// Distance traveled (kilometers)
+  distance,
+
+  /// Stress level (arbitrary units)
   stress,
 }
 
@@ -22,20 +35,26 @@ class SynheartWearError implements Exception {
       'SynheartWearError: $message${code != null ? ' ($code)' : ''}';
 }
 
+/// Error thrown when health data permissions are denied by the user
 class PermissionDeniedError extends SynheartWearError {
   PermissionDeniedError(String message)
-      : super(message, code: 'PERMISSION_DENIED');
+    : super(message, code: 'PERMISSION_DENIED');
 }
 
+/// Error thrown when a wearable device or health service is unavailable
 class DeviceUnavailableError extends SynheartWearError {
   DeviceUnavailableError(String message)
-      : super(message, code: 'DEVICE_UNAVAILABLE');
+    : super(message, code: 'DEVICE_UNAVAILABLE');
 }
 
+/// Error thrown when network requests fail (e.g., cloud API calls)
 class NetworkError extends SynheartWearError {
   NetworkError(String message, [Exception? originalException])
-      : super(message,
-            code: 'NETWORK_ERROR', originalException: originalException);
+    : super(
+        message,
+        code: 'NETWORK_ERROR',
+        originalException: originalException,
+      );
 }
 
 /// Unified wearable metrics data model following RFC schema
@@ -66,20 +85,21 @@ class WearMetrics {
       source: json['source'] as String,
       metrics: Map<String, num?>.from(json['metrics'] as Map),
       meta: Map<String, Object?>.from(json['meta'] as Map? ?? {}),
-      rrIntervalsMs:
-          (json['rr_ms'] as List?)?.map((e) => (e as num).toDouble()).toList(),
+      rrIntervalsMs: (json['rr_ms'] as List?)
+          ?.map((e) => (e as num).toDouble())
+          .toList(),
     );
   }
 
   /// Convert to JSON following RFC schema
   Map<String, Object?> toJson() => {
-        'timestamp': timestamp.toIso8601String(),
-        'device_id': deviceId,
-        'source': source,
-        'metrics': metrics,
-        'meta': meta,
-        if (rrIntervalsMs != null) 'rr_ms': rrIntervalsMs,
-      };
+    'timestamp': timestamp.toIso8601String(),
+    'device_id': deviceId,
+    'source': source,
+    'metrics': metrics,
+    'meta': meta,
+    if (rrIntervalsMs != null) 'rr_ms': rrIntervalsMs,
+  };
 
   /// Get specific metric value with type safety
   num? getMetric(MetricType type) {

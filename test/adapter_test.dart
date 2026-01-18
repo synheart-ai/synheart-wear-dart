@@ -11,8 +11,10 @@ void main() {
 
       expect(adapter.id, equals('apple_healthkit'));
       expect(adapter.supportedPermissions, contains(PermissionType.heartRate));
-      expect(adapter.supportedPermissions,
-          contains(PermissionType.heartRateVariability));
+      expect(
+        adapter.supportedPermissions,
+        contains(PermissionType.heartRateVariability),
+      );
       expect(adapter.supportedPermissions, contains(PermissionType.steps));
       expect(adapter.supportedPermissions, contains(PermissionType.calories));
     });
@@ -24,8 +26,10 @@ void main() {
       expect(adapter.supportedPermissions, contains(PermissionType.heartRate));
       expect(adapter.supportedPermissions, contains(PermissionType.steps));
       expect(adapter.supportedPermissions, contains(PermissionType.calories));
-      expect(adapter.supportedPermissions,
-          isNot(contains(PermissionType.heartRateVariability)));
+      expect(
+        adapter.supportedPermissions,
+        isNot(contains(PermissionType.heartRateVariability)),
+      );
     });
   });
 
@@ -35,7 +39,9 @@ void main() {
 
       expect(mockAdapter.id, equals('mock_adapter'));
       expect(
-          mockAdapter.supportedPermissions, contains(PermissionType.heartRate));
+        mockAdapter.supportedPermissions,
+        contains(PermissionType.heartRate),
+      );
 
       final metrics = await mockAdapter.readSnapshot();
       expect(metrics, isNotNull);
@@ -48,8 +54,10 @@ void main() {
       final failingAdapter = FailingWearAdapter();
 
       expect(failingAdapter.id, equals('failing_adapter'));
-      expect(failingAdapter.supportedPermissions,
-          contains(PermissionType.heartRate));
+      expect(
+        failingAdapter.supportedPermissions,
+        contains(PermissionType.heartRate),
+      );
 
       expect(
         () async => await failingAdapter.readSnapshot(),

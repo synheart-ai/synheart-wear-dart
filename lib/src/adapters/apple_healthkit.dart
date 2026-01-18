@@ -4,18 +4,25 @@ import 'health_adapter.dart';
 import 'wear_adapter.dart';
 import 'healthkit_rr_channel.dart';
 
+/// Adapter for Apple HealthKit (iOS) and Health Connect (Android)
+///
+/// Provides unified access to health data on both platforms:
+/// - iOS: Uses HealthKit API for all metrics including RR intervals
+/// - Android: Uses Health Connect API (supports HRV via RMSSD, distance via DELTA)
+///
+/// Supports heart rate, HRV, steps, calories, and distance metrics.
 class AppleHealthKitAdapter implements WearAdapter {
   @override
   String get id => 'apple_healthkit';
 
   @override
   Set<PermissionType> get supportedPermissions => const {
-        PermissionType.heartRate,
-        PermissionType.heartRateVariability,
-        PermissionType.steps,
-        PermissionType.calories,
-        PermissionType.distance,
-      };
+    PermissionType.heartRate,
+    PermissionType.heartRateVariability,
+    PermissionType.steps,
+    PermissionType.calories,
+    PermissionType.distance,
+  };
 
   /// Get permissions that are actually supported on the current platform
   Set<PermissionType> get _platformSupportedPermissions {
@@ -53,8 +60,9 @@ class AppleHealthKitAdapter implements WearAdapter {
 
     // Request permissions using health package
     // Use platform-specific permissions (exclude HRV on Android)
-    final granted =
-        await HealthAdapter.requestPermissions(_platformSupportedPermissions);
+    final granted = await HealthAdapter.requestPermissions(
+      _platformSupportedPermissions,
+    );
     if (!granted) {
       throw PermissionDeniedError(
         Platform.isAndroid

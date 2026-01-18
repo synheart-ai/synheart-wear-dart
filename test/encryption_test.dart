@@ -20,12 +20,13 @@ void main() {
       // Test static methods that don't require file system access
       expect(EncryptionService.isEncrypted({'test': 'data'}), isFalse);
       expect(
-          EncryptionService.isEncrypted({
-            'encrypted_data': 'test',
-            'iv': 'test',
-            'algorithm': 'AES-256-CBC',
-          }),
-          isTrue);
+        EncryptionService.isEncrypted({
+          'encrypted_data': 'test',
+          'iv': 'test',
+          'algorithm': 'AES-256-CBC',
+        }),
+        isTrue,
+      );
     });
   });
 

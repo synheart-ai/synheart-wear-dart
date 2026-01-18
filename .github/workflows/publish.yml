@@ -1,74 +1,13 @@
 name: Publish to pub.dev
 
-# CI/CD temporarily disabled - doing everything manually for now
-# Will re-enable in the future
-# on:
-#   release:
-#     types: [created]
-#   workflow_dispatch:
-#     inputs:
-#       version:
-#         description: "Version to publish (e.g., 0.2.0)"
-#         required: true
-#         type: string
-
-# Disable workflow by using a condition that never runs
 on:
-  workflow_dispatch:
-    inputs:
-      skip:
-        description: 'Publishing disabled - use manual processes'
-        required: false
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
   publish:
-    name: Publish Package
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetch all history to check branches
-
-      - name: Verify release is from main branch
-        if: github.event_name == 'release'
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "Checking if tag $TAG_NAME is on main branch..."
-
-          # Check if tag exists on main branch
-          if ! git branch -r --contains "$TAG_NAME" | grep -q "origin/main"; then
-              echo "❌ Error: Tag $TAG_NAME is not on the main branch"
-              echo "Available branches containing this tag:"
-              git branch -r --contains "$TAG_NAME"
-              exit 1
-          fi
-
-          echo "✅ Tag $TAG_NAME is on main branch"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.22.0"
-          channel: "stable"
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Verify package
-        run: flutter pub publish --dry-run
-
-      - name: Check version matches release tag
-        run: |
-          VERSION=$(grep '^version:' pubspec.yaml | cut -d ' ' -f 2)
-          TAG_VERSION=${GITHUB_REF#refs/tags/}
-          if [ "$VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: Version in pubspec.yaml ($VERSION) doesn't match release tag ($TAG_VERSION)"
-            exit 1
-          fi
-
-      - name: Publish to pub.dev
-        run: flutter pub publish --force
-        env:
-          PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
+    permissions:
+      id-token: write # Required for authentication using OIDC
+      contents: read
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1

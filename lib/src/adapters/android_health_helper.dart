@@ -4,8 +4,9 @@ import 'package:flutter/services.dart';
 /// Helper class for Android Health Connect utilities
 /// Provides methods to detect Samsung Health and provide user guidance
 class AndroidHealthHelper {
-  static const MethodChannel _channel =
-      MethodChannel('synheart_wear/android_health');
+  static const MethodChannel _channel = MethodChannel(
+    'synheart_wear/android_health',
+  );
 
   /// Check if Samsung Health is installed on the device
   static Future<bool> isSamsungHealthInstalled() async {
@@ -15,7 +16,7 @@ class AndroidHealthHelper {
     try {
       final bool result =
           await _channel.invokeMethod<bool>('isSamsungHealthInstalled') ??
-              false;
+          false;
       return result;
     } catch (e) {
       // If method channel fails, assume not available
@@ -75,15 +76,17 @@ class AndroidHealthHelper {
         message.writeln('🔧 On Android < 16: Manual sync required');
         message.writeln('   1. Open Samsung Health app');
         message.writeln('   2. Go to: My Page → ⚙️ Settings → Health Connect');
-        message
-            .writeln('   3. Enable data sharing for Steps, Heart Rate, etc.');
+        message.writeln(
+          '   3. Enable data sharing for Steps, Heart Rate, etc.',
+        );
         message.writeln('   4. Wait for sync, then refresh this app');
       } else {
         // Android 16+
         message.writeln();
         message.writeln('💡 On Android 16+, sync should be automatic');
         message.writeln(
-            '   If not working, check Samsung Health → Settings → Health Connect');
+          '   If not working, check Samsung Health → Settings → Health Connect',
+        );
       }
 
       return message.toString();

@@ -1,20 +1,26 @@
-name: Publish to pub.dev (with Flux binaries)
+name: Publish synheart-wear to pub.dev (bundled Flux)
 
 on:
   workflow_dispatch:
   push:
     tags:
-      - "v*"
+      - "v[0-9]+.[0-9]+.[0-9]+*"
 
 permissions:
   contents: read
+  id-token: write  
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Sets up OIDC auth for pub.dev 
+      - name: Setup Dart (OIDC for pub.dev)
+        uses: dart-lang/setup-dart@v1
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -24,45 +30,16 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Download Flux native binaries
-        env:
-          # Optional: set this secret if synheart-flux releases are private.
-          FLUX_GITHUB_TOKEN: ${{ secrets.FLUX_GITHUB_TOKEN }}
+      - name: Download + vendor Flux native binaries into the Flutter plugin
         run: |
           chmod +x tool/fetch_flux_binaries.sh
           tool/fetch_flux_binaries.sh
 
+      - name: Verify package contents (dry run)
+        run: flutter pub publish --dry-run
+
       - name: Run tests
         run: flutter test
 
-      - name: Pub publish dry-run (sanity check package contents)
-        run: flutter pub publish --dry-run
-
       - name: Publish to pub.dev
-        # Provide one of these secrets:
-        # - PUB_CREDENTIALS: contents of ~/.config/dart/pub-credentials.json
-        #   (recommended for automated publishing)
-        env:
-          PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
-        run: |
-          if [ -z "${PUB_CREDENTIALS}" ]; then
-            echo "ERROR: PUB_CREDENTIALS secret is not set."
-            exit 1
-          fi
-          mkdir -p "$HOME/.config/dart"
-          echo "${PUB_CREDENTIALS}" > "$HOME/.config/dart/pub-credentials.json"
-          flutter pub publish --force
-
-name: Publish to pub.dev
-
-on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
-
-jobs:
-  publish:
-    permissions:
-      id-token: write # Required for authentication using OIDC
-      contents: read
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+        run: flutter pub publish --force

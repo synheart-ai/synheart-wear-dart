@@ -250,6 +250,73 @@ Add to `ios/Runner/Info.plist`:
 - ✅ Anonymized UUIDs
 - ✅ Right to forget (revoke & delete)
 
+## 🧠 Flux (HSI compute) 
+
+This package includes **Flux**, a compute pipeline that converts vendor payloads (WHOOP/Garmin) into **HSI-style daily JSON payloads**.
+
+### Install (native Rust Flux binaries)
+
+Flux is implemented in **Rust** and called via Dart **FFI**. To activate Flux, your app must bundle the native library for your platform.
+
+- **Android**: `libsynheart_flux.so` in `vendor/flux/android/jniLibs/<abi>/`
+  - Example: `vendor/flux/android/jniLibs/arm64-v8a/libsynheart_flux.so`
+- **iOS**: `vendor/flux/ios/SynheartFlux.xcframework`
+- **Desktop (optional)**:
+  - macOS: `vendor/flux/desktop/mac/libsynheart_flux.dylib`
+  - Linux: `vendor/flux/desktop/linux/libsynheart_flux.so`
+  - Windows: `vendor/flux/desktop/win/synheart_flux.dll`
+
+**Where do these binaries come from?**
+
+- They are published as release artifacts in the Flux repo: [synheart-flux releases](https://github.com/synheart-ai/synheart-flux/releases)
+- This repository pins the desired Flux version in `vendor/flux/VERSION`.
+- If you’re building this package from source, download the matching artifacts and place them into the `vendor/flux/` structure above (see `vendor/flux/README.md`).
+
+### Activate (runtime check)
+
+Flux will only run if the native library can be loaded. Check availability before calling:
+
+```dart
+import 'package:synheart_wear/flux.dart';
+
+if (!isFluxAvailable) {
+  // Common causes: missing .so / missing xcframework / not linked into the app.
+  throw Exception('Flux not available: $fluxLoadError');
+}
+```
+
+### Use (stateless)
+
+```dart
+import 'package:synheart_wear/flux.dart';
+
+final hsiPayloads = whoopToHsiDaily(rawWhoopJson, 'America/New_York', 'device-123');
+// or:
+// final hsiPayloads = garminToHsiDaily(rawGarminJson, 'America/Los_Angeles', 'device-456');
+
+for (final hsiJson in hsiPayloads) {
+  print(hsiJson); // each item is a JSON string (one per day)
+}
+```
+
+### Use (stateful baselines)
+
+Use this when you need rolling baselines across multiple calls. Don’t forget to dispose.
+
+```dart
+import 'package:synheart_wear/flux.dart';
+
+final processor = FluxProcessor(); // default baseline window = 14 days
+
+final day1 = processor.processWhoop(whoopJsonDay1, 'America/New_York', 'device-123');
+final day2 = processor.processWhoop(whoopJsonDay2, 'America/New_York', 'device-123');
+
+final savedBaselinesJson = processor.saveBaselines();
+// ... persist savedBaselinesJson somewhere ...
+
+processor.dispose();
+```
+
 ## 📖 Additional Resources
 
 - **[Full API Documentation](https://synheart-ai.github.io/synheart_wear/)** — Complete API reference

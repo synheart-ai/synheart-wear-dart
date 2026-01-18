@@ -15,5 +15,11 @@ Synheart Wear iOS plugin for optional HealthKit heartbeat series (RR) integratio
   s.platform = :ios, '13.0'
   s.swift_version = '5.0'
   s.static_framework = true
+
+  # Optional: bundle the native Rust Flux engine if the XCFramework is present.
+  flux_xcframework = File.expand_path('../vendor/flux/ios/SynheartFlux.xcframework', __dir__)
+  if File.exist?(flux_xcframework)
+    s.vendored_frameworks = flux_xcframework
+  end
 end
 

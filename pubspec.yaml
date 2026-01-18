@@ -11,6 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   collection: ^1.18.0
+  ffi: ^2.1.0
   uuid: ^4.4.0
   path_provider: ^2.1.4
   health: ^13.2.1

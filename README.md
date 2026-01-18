@@ -250,6 +250,83 @@ Add to `ios/Runner/Info.plist`:
 - ✅ Anonymized UUIDs
 - ✅ Right to forget (revoke & delete)
 
+## 🧠 Flux (HSI compute) 
+
+This package includes **Flux**, a compute pipeline that converts vendor payloads (WHOOP/Garmin) into **HSI-style daily JSON payloads**.
+
+### Install (native Rust Flux binaries)
+
+Flux is implemented in **Rust** and called via Dart **FFI**. To activate Flux, your app must bundle the native library for your platform.
+
+- **If you install from pub.dev**: Flux native binaries are **already bundled** in this package under `vendor/flux/**` (no extra download step needed).
+- **If you build from source / want custom binaries**: you can replace the files under `vendor/flux/**` (or build Flux yourself) and ship those instead.
+
+- **Android**: `libsynheart_flux.so` in `vendor/flux/android/jniLibs/<abi>/`
+  - Example: `vendor/flux/android/jniLibs/arm64-v8a/libsynheart_flux.so`
+- **iOS**: `vendor/flux/ios/SynheartFlux.xcframework`
+- **Desktop (optional)**:
+  - macOS: `vendor/flux/desktop/mac/macos-arm64/libsynheart_flux.dylib`
+  - Linux: `vendor/flux/desktop/linux/linux-x86_64/libsynheart_flux.so`
+  - Windows: `vendor/flux/desktop/win/synheart_flux.dll`
+
+**Desktop note:** vendoring the `.dylib/.so/.dll` inside the Dart package doesn’t automatically bundle it into your desktop app executable. If you want Flux on desktop, bundle/copy the native library into your app, or set:
+
+- `SYNHEART_FLUX_LIB_PATH=/absolute/path/to/libsynheart_flux.(dylib|so)` (or `synheart_flux.dll`)
+- (optional) `SYNHEART_FLUX_VENDOR_DIR=/absolute/path/to/vendor/flux`
+
+**Where do these binaries come from?**
+
+- They are published as release artifacts in the Flux repo: [synheart-flux releases](https://github.com/synheart-ai/synheart-flux/releases)
+- This repository pins the desired Flux version in `vendor/flux/VERSION`.
+- If you’re building this package from source, download the matching artifacts and place them into the `vendor/flux/` structure above (see `vendor/flux/README.md`).
+
+**Build your own Flux binaries:** you can build Flux from source in the Flux repository and drop the resulting artifacts into the same `vendor/flux/**` layout (or point `SYNHEART_FLUX_LIB_PATH` at your built library).
+
+### Activate (runtime check)
+
+Flux will only run if the native library can be loaded. Check availability before calling:
+
+```dart
+import 'package:synheart_wear/flux.dart';
+
+if (!isFluxAvailable) {
+  // Common causes: missing .so / missing xcframework / not linked into the app.
+  throw Exception('Flux not available: $fluxLoadError');
+}
+```
+
+### Use (stateless)
+
+```dart
+import 'package:synheart_wear/flux.dart';
+
+final hsiPayloads = whoopToHsiDaily(rawWhoopJson, 'America/New_York', 'device-123');
+// or:
+// final hsiPayloads = garminToHsiDaily(rawGarminJson, 'America/Los_Angeles', 'device-456');
+
+for (final hsiJson in hsiPayloads) {
+  print(hsiJson); // each item is a JSON string (one per day)
+}
+```
+
+### Use (stateful baselines)
+
+Use this when you need rolling baselines across multiple calls. Don’t forget to dispose.
+
+```dart
+import 'package:synheart_wear/flux.dart';
+
+final processor = FluxProcessor(); // default baseline window = 14 days
+
+final day1 = processor.processWhoop(whoopJsonDay1, 'America/New_York', 'device-123');
+final day2 = processor.processWhoop(whoopJsonDay2, 'America/New_York', 'device-123');
+
+final savedBaselinesJson = processor.saveBaselines();
+// ... persist savedBaselinesJson somewhere ...
+
+processor.dispose();
+```
+
 ## 📖 Additional Resources
 
 - **[Full API Documentation](https://synheart-ai.github.io/synheart_wear/)** — Complete API reference
@@ -599,7 +676,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Apache 2.0 License
 
 ## 👥 Authors
 

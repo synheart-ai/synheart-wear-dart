@@ -80,6 +80,11 @@ When updating Flux:
 
 ## Current Implementation Note
 
-The current Dart implementation in `lib/src/flux/` is a pure Dart port of the Flux pipeline.
-This allows development and testing without native binaries. When native libraries are available,
-FFI bindings can be added to call the Rust implementation for improved performance.
+The Wear SDK calls the **native Rust Flux library via Dart FFI**.
+
+- The Rust binaries are **not meant to be checked into git**. CI/CD should download
+  them from Flux GitHub Releases (pinned by `vendor/flux/VERSION`) right before publishing.
+- If the native binaries are missing at runtime, Flux will not be available (see
+  `isFluxAvailable` / `fluxLoadError` in the public Flux API).
+
+

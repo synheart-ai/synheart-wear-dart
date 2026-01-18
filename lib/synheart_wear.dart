@@ -121,3 +121,12 @@ export 'src/swip/swip_hooks.dart';
 export 'src/sources/whoop_cloud.dart';
 export 'src/sources/garmin_cloud.dart';
 export 'src/adapters/android_health_helper.dart';
+
+// Garmin SDK adapter
+export 'src/adapters/garmin/garmin.dart';
+export 'src/models/garmin_device.dart';
+export 'src/models/garmin_connection_state.dart';
+export 'src/models/garmin_realtime_data.dart';
+export 'src/models/garmin_wellness_data.dart';
+export 'src/models/garmin_sleep_data.dart';
+export 'src/models/garmin_activity_data.dart';

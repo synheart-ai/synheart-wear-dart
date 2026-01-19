@@ -271,6 +271,12 @@ class SynheartWear {
             timezone,
             deviceId,
           );
+          if (jsonStrings == null) {
+            throw SynheartWearError(
+              'Flux processing failed for WHOOP data.',
+              code: 'FLUX_PROCESSING_FAILED',
+            );
+          }
           payloads = _parseHsiPayloads(jsonStrings);
         case Vendor.garmin:
           final jsonStrings = _fluxProcessor!.processGarmin(
@@ -278,6 +284,12 @@ class SynheartWear {
             timezone,
             deviceId,
           );
+          if (jsonStrings == null) {
+            throw SynheartWearError(
+              'Flux processing failed for Garmin data.',
+              code: 'FLUX_PROCESSING_FAILED',
+            );
+          }
           payloads = _parseHsiPayloads(jsonStrings);
       }
 
@@ -360,9 +372,10 @@ class SynheartWear {
   ///
   /// Returns JSON string of baseline state that can be saved and restored.
   /// Useful for maintaining baseline continuity across app restarts.
+  /// Returns null if Flux is not available.
   ///
   /// Throws [SynheartWearError] if Flux is not enabled or not initialized.
-  String saveFluxBaselines() {
+  String? saveFluxBaselines() {
     if (!config.enableFlux) {
       throw SynheartWearError(
         'Flux is not enabled. Set enableFlux: true in SynheartWearConfig.',
@@ -598,85 +611,9 @@ class SynheartWear {
     );
   }
 
-  /// Convert JSON map to HsiPayload
+  /// Convert JSON map to HsiPayload (HSI 1.0 format)
   HsiPayload _hsiPayloadFromJson(Map<String, dynamic> json) {
-    final producerJson = json['producer'] as Map<String, dynamic>;
-    final provenanceJson = json['provenance'] as Map<String, dynamic>;
-    final qualityJson = json['quality'] as Map<String, dynamic>;
-    final windowsJson = json['windows'] as List<dynamic>;
-
-    return HsiPayload(
-      hsiVersion: json['hsi_version'] as String,
-      producer: HsiProducer(
-        name: producerJson['name'] as String,
-        version: producerJson['version'] as String,
-        instanceId: producerJson['instance_id'] as String,
-      ),
-      provenance: HsiProvenance(
-        sourceVendor: provenanceJson['source_vendor'] as String,
-        sourceDeviceId: provenanceJson['source_device_id'] as String,
-        observedAtUtc: provenanceJson['observed_at_utc'] as String,
-        computedAtUtc: provenanceJson['computed_at_utc'] as String,
-      ),
-      quality: HsiQuality(
-        coverage: (qualityJson['coverage'] as num).toDouble(),
-        freshnessSec: qualityJson['freshness_sec'] as int,
-        confidence: (qualityJson['confidence'] as num).toDouble(),
-        flags: List<String>.from(qualityJson['flags'] as List? ?? []),
-      ),
-      windows: windowsJson.map((w) => _hsiDailyWindowFromJson(w as Map<String, dynamic>)).toList(),
-    );
-  }
-
-  /// Convert JSON map to HsiDailyWindow
-  HsiDailyWindow _hsiDailyWindowFromJson(Map<String, dynamic> json) {
-    final sleepJson = json['sleep'] as Map<String, dynamic>;
-    final physiologyJson = json['physiology'] as Map<String, dynamic>;
-    final activityJson = json['activity'] as Map<String, dynamic>;
-    final baselineJson = json['baseline'] as Map<String, dynamic>;
-
-    return HsiDailyWindow(
-      date: json['date'] as String,
-      timezone: json['timezone'] as String,
-      sleep: HsiSleep(
-        durationMinutes: (sleepJson['duration_minutes'] as num?)?.toDouble(),
-        efficiency: (sleepJson['efficiency'] as num?)?.toDouble(),
-        fragmentation: (sleepJson['fragmentation'] as num?)?.toDouble(),
-        deepRatio: (sleepJson['deep_ratio'] as num?)?.toDouble(),
-        remRatio: (sleepJson['rem_ratio'] as num?)?.toDouble(),
-        latencyMinutes: (sleepJson['latency_minutes'] as num?)?.toDouble(),
-        score: (sleepJson['score'] as num?)?.toDouble(),
-        vendor: Map<String, dynamic>.from(sleepJson['vendor'] as Map? ?? {}),
-      ),
-      physiology: HsiPhysiology(
-        hrvRmssdMs: (physiologyJson['hrv_rmssd_ms'] as num?)?.toDouble(),
-        restingHrBpm: (physiologyJson['resting_hr_bpm'] as num?)?.toDouble(),
-        respiratoryRate: (physiologyJson['respiratory_rate'] as num?)?.toDouble(),
-        spo2Percentage: (physiologyJson['spo2_percentage'] as num?)?.toDouble(),
-        recoveryScore: (physiologyJson['recovery_score'] as num?)?.toDouble(),
-        vendor: Map<String, dynamic>.from(physiologyJson['vendor'] as Map? ?? {}),
-      ),
-      activity: HsiActivity(
-        strainScore: (activityJson['strain_score'] as num?)?.toDouble(),
-        normalizedLoad: (activityJson['normalized_load'] as num?)?.toDouble(),
-        calories: (activityJson['calories'] as num?)?.toDouble(),
-        activeCalories: (activityJson['active_calories'] as num?)?.toDouble(),
-        steps: activityJson['steps'] as int?,
-        activeMinutes: (activityJson['active_minutes'] as num?)?.toDouble(),
-        distanceMeters: (activityJson['distance_meters'] as num?)?.toDouble(),
-        vendor: Map<String, dynamic>.from(activityJson['vendor'] as Map? ?? {}),
-      ),
-      baseline: HsiBaseline(
-        hrvMs: (baselineJson['hrv_ms'] as num?)?.toDouble(),
-        restingHrBpm: (baselineJson['resting_hr_bpm'] as num?)?.toDouble(),
-        sleepDurationMinutes: (baselineJson['sleep_duration_minutes'] as num?)?.toDouble(),
-        sleepEfficiency: (baselineJson['sleep_efficiency'] as num?)?.toDouble(),
-        hrvDeviationPct: (baselineJson['hrv_deviation_pct'] as num?)?.toDouble(),
-        rhrDeviationPct: (baselineJson['rhr_deviation_pct'] as num?)?.toDouble(),
-        sleepDeviationPct: (baselineJson['sleep_deviation_pct'] as num?)?.toDouble(),
-        daysInBaseline: baselineJson['days_in_baseline'] as int? ?? 0,
-      ),
-    );
+    return HsiPayload.fromJson(json);
   }
 
   /// Getter for testing timer state

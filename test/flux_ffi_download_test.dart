@@ -53,10 +53,12 @@ void main() {
 
       // Smoke: call into native code without needing vendor JSON.
       final processor = FluxProcessor();
-      final baselinesJson = processor.saveBaselines();
+      expect(processor.isAvailable, isTrue);
 
+      final baselinesJson = processor.saveBaselines();
+      expect(baselinesJson, isNotNull);
       expect(baselinesJson, isNotEmpty);
-      expect(() => jsonDecode(baselinesJson), returnsNormally);
+      expect(() => jsonDecode(baselinesJson!), returnsNormally);
 
       processor.dispose();
     },

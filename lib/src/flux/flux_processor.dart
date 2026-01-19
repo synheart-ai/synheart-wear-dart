@@ -1,22 +1,22 @@
 /// Pipeline orchestration for Synheart Flux
 ///
 /// This module provides the public API for Synheart Flux.
-/// It uses FFI bindings to call the native Rust Flux library.
+/// Flux is optional - if the native library is not available, functions
+/// gracefully return null instead of throwing exceptions.
 
 import 'dart:convert';
 
 import 'ffi/flux_ffi.dart';
 import 'types.dart';
 
-/// Convert raw WHOOP JSON payload to HSI-compliant daily payloads.
+/// Convert raw WHOOP JSON payload to HSI 1.0 compliant daily payloads.
 ///
 /// [rawJson] - Raw WHOOP API response JSON
 /// [timezone] - User's timezone (e.g., "America/New_York")
 /// [deviceId] - Unique device identifier
 ///
-/// Returns list of HSI JSON payloads (one per day in the input)
-///
-/// Throws [FluxNotAvailableException] if native Flux library is not loaded.
+/// Returns list of HSI JSON payloads (one per day in the input),
+/// or null if Flux is not available (graceful degradation).
 ///
 /// Example:
 /// ```dart
@@ -25,30 +25,36 @@ import 'types.dart';
 ///   'America/New_York',
 ///   'device-123',
 /// );
+/// if (hsiPayloads == null) {
+///   print('Flux not available');
+/// }
 /// ```
-List<String> whoopToHsiDaily(
+List<String>? whoopToHsiDaily(
   String rawJson,
   String timezone,
   String deviceId,
 ) {
   final native = FluxNative.create();
   if (native == null) {
-    throw FluxNotAvailableException(FluxFfi.loadError);
+    print('whoopToHsiDaily: Flux native library not available');
+    return null;
   }
 
   final resultJson = native.whoopToHsiDaily(rawJson, timezone, deviceId);
+  if (resultJson == null) {
+    return null;
+  }
   return _parseJsonArray(resultJson);
 }
 
-/// Convert raw Garmin JSON payload to HSI-compliant daily payloads.
+/// Convert raw Garmin JSON payload to HSI 1.0 compliant daily payloads.
 ///
 /// [rawJson] - Raw Garmin API response JSON
 /// [timezone] - User's timezone (e.g., "America/Los_Angeles")
 /// [deviceId] - Unique device identifier
 ///
-/// Returns list of HSI JSON payloads (one per day in the input)
-///
-/// Throws [FluxNotAvailableException] if native Flux library is not loaded.
+/// Returns list of HSI JSON payloads (one per day in the input),
+/// or null if Flux is not available (graceful degradation).
 ///
 /// Example:
 /// ```dart
@@ -57,18 +63,25 @@ List<String> whoopToHsiDaily(
 ///   'America/Los_Angeles',
 ///   'garmin-device-456',
 /// );
+/// if (hsiPayloads == null) {
+///   print('Flux not available');
+/// }
 /// ```
-List<String> garminToHsiDaily(
+List<String>? garminToHsiDaily(
   String rawJson,
   String timezone,
   String deviceId,
 ) {
   final native = FluxNative.create();
   if (native == null) {
-    throw FluxNotAvailableException(FluxFfi.loadError);
+    print('garminToHsiDaily: Flux native library not available');
+    return null;
   }
 
   final resultJson = native.garminToHsiDaily(rawJson, timezone, deviceId);
+  if (resultJson == null) {
+    return null;
+  }
   return _parseJsonArray(resultJson);
 }
 
@@ -80,12 +93,17 @@ String? get fluxLoadError => FluxFfi.loadError;
 
 /// Parse a JSON array string into a list of JSON strings
 List<String> _parseJsonArray(String jsonArrayStr) {
-  final decoded = jsonDecode(jsonArrayStr);
-  if (decoded is List) {
-    return decoded.map((item) => jsonEncode(item)).toList();
+  try {
+    final decoded = jsonDecode(jsonArrayStr);
+    if (decoded is List) {
+      return decoded.map((item) => jsonEncode(item)).toList();
+    }
+    // Single object, wrap in list
+    return [jsonArrayStr];
+  } catch (e) {
+    print('_parseJsonArray: Failed to parse JSON: $e');
+    return [];
   }
-  // Single object, wrap in list
-  return [jsonArrayStr];
 }
 
 /// Stateful processor for incremental processing with persistent baselines.
@@ -93,9 +111,19 @@ List<String> _parseJsonArray(String jsonArrayStr) {
 /// Use this when you need to maintain baselines across multiple API calls.
 /// This class wraps the native Rust FluxProcessor via FFI.
 ///
+/// Flux is optional - if the native library is not available:
+/// - `isAvailable` returns false
+/// - Processing methods return null
+/// - Baseline methods return null/false
+///
 /// Example:
 /// ```dart
 /// final processor = FluxProcessor();
+///
+/// if (!processor.isAvailable) {
+///   print('Flux not available, using fallback');
+///   return;
+/// }
 ///
 /// // Process WHOOP data
 /// final results = processor.processWhoop(whoopJson, 'America/New_York', 'device-123');
@@ -106,7 +134,7 @@ List<String> _parseJsonArray(String jsonArrayStr) {
 /// // ... later ...
 ///
 /// // Load baselines and continue processing
-/// processor.loadBaselines(savedBaselines);
+/// processor.loadBaselines(savedBaselines ?? '{}');
 /// final moreResults = processor.processWhoop(moreWhoopJson, 'America/New_York', 'device-123');
 ///
 /// // Don't forget to dispose when done
@@ -117,37 +145,59 @@ class FluxProcessor {
 
   /// Create a new processor with default settings (14-day baseline window)
   ///
-  /// Throws [FluxNotAvailableException] if native Flux library is not loaded.
+  /// If Flux native library is not available, `isAvailable` will return false
+  /// and all processing methods will return null (graceful degradation).
   FluxProcessor() : this.withBaselineWindow(14);
 
   /// Create a processor with a specific baseline window size
   ///
-  /// Throws [FluxNotAvailableException] if native Flux library is not loaded.
+  /// If Flux native library is not available, `isAvailable` will return false
+  /// and all processing methods will return null (graceful degradation).
   FluxProcessor.withBaselineWindow(int windowDays) {
     _native = FluxProcessorNative.create(baselineWindowDays: windowDays);
     if (_native == null) {
-      throw FluxNotAvailableException(FluxFfi.loadError);
+      print('FluxProcessor: Native library not available, running in degraded mode');
     }
   }
 
+  /// Check if Flux native library is available
+  bool get isAvailable => _native != null && !_native!.isDisposed;
+
+  /// Check if Flux native library is available (static check)
+  static bool get isFluxAvailable => FluxProcessorNative.isAvailable;
+
   /// Load baseline state from JSON
-  void loadBaselines(String json) {
-    _checkAvailable();
-    _native!.loadBaselines(json);
+  /// Returns true if successful, false if failed or Flux unavailable
+  bool loadBaselines(String json) {
+    if (_native == null || _native!.isDisposed) {
+      print('FluxProcessor: Cannot load baselines - not available');
+      return false;
+    }
+    return _native!.loadBaselines(json);
   }
 
   /// Save baseline state to JSON
-  String saveBaselines() {
-    _checkAvailable();
+  /// Returns null if Flux is not available
+  String? saveBaselines() {
+    if (_native == null || _native!.isDisposed) {
+      print('FluxProcessor: Cannot save baselines - not available');
+      return null;
+    }
     return _native!.saveBaselines();
   }
 
-  /// Get current baselines as JSON
-  Baselines get currentBaselines {
-    _checkAvailable();
-    final json = _native!.saveBaselines();
-    final data = jsonDecode(json) as Map<String, dynamic>;
-    return Baselines.fromJson(data);
+  /// Get current baselines as typed object
+  /// Returns null if Flux is not available
+  Baselines? get currentBaselines {
+    final json = saveBaselines();
+    if (json == null) return null;
+    try {
+      final data = jsonDecode(json) as Map<String, dynamic>;
+      return Baselines.fromJson(data);
+    } catch (e) {
+      print('FluxProcessor: Failed to parse baselines: $e');
+      return null;
+    }
   }
 
   /// Process WHOOP payload with persistent baselines
@@ -156,14 +206,18 @@ class FluxProcessor {
   /// [timezone] - User's timezone (e.g., "America/New_York")
   /// [deviceId] - Unique device identifier
   ///
-  /// Returns list of HSI JSON payloads
-  List<String> processWhoop(
+  /// Returns list of HSI JSON payloads, or null if Flux is not available
+  List<String>? processWhoop(
     String rawJson,
     String timezone,
     String deviceId,
   ) {
-    _checkAvailable();
+    if (_native == null || _native!.isDisposed) {
+      print('FluxProcessor: Cannot process WHOOP - not available');
+      return null;
+    }
     final resultJson = _native!.processWhoop(rawJson, timezone, deviceId);
+    if (resultJson == null) return null;
     return _parseJsonArray(resultJson);
   }
 
@@ -173,14 +227,18 @@ class FluxProcessor {
   /// [timezone] - User's timezone (e.g., "America/Los_Angeles")
   /// [deviceId] - Unique device identifier
   ///
-  /// Returns list of HSI JSON payloads
-  List<String> processGarmin(
+  /// Returns list of HSI JSON payloads, or null if Flux is not available
+  List<String>? processGarmin(
     String rawJson,
     String timezone,
     String deviceId,
   ) {
-    _checkAvailable();
+    if (_native == null || _native!.isDisposed) {
+      print('FluxProcessor: Cannot process Garmin - not available');
+      return null;
+    }
     final resultJson = _native!.processGarmin(rawJson, timezone, deviceId);
+    if (resultJson == null) return null;
     return _parseJsonArray(resultJson);
   }
 
@@ -191,15 +249,11 @@ class FluxProcessor {
     _native?.dispose();
     _native = null;
   }
-
-  void _checkAvailable() {
-    if (_native == null || _native!.isDisposed) {
-      throw StateError('FluxProcessor has been disposed or is not available');
-    }
-  }
 }
 
 /// Exception thrown when the native Flux library is not available
+/// @deprecated Use null checks instead - Flux now uses graceful degradation
+@Deprecated('Use null checks instead - Flux now uses graceful degradation')
 class FluxNotAvailableException implements Exception {
   final String message;
 

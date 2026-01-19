@@ -356,13 +356,14 @@ class FluxFfiException implements Exception {
   String toString() => 'FluxFfiException: $message';
 }
 
-/// High-level wrapper for Flux FFI operations
+/// High-level wrapper for Flux FFI operations with graceful degradation
 class FluxNative {
   final FluxFfi _ffi;
 
   FluxNative._(this._ffi);
 
   /// Create a FluxNative instance if native library is available
+  /// Returns null if native library is not loaded (graceful degradation)
   static FluxNative? create() {
     final ffi = FluxFfi.instance;
     if (ffi == null) return null;
@@ -372,8 +373,12 @@ class FluxNative {
   /// Check if native Flux is available
   static bool get isAvailable => FluxFfi.isAvailable;
 
+  /// Get the error message if Flux failed to load
+  static String? get loadError => FluxFfi.loadError;
+
   /// Process WHOOP JSON and return HSI JSON (stateless)
-  String whoopToHsiDaily(String json, String timezone, String deviceId) {
+  /// Returns null if processing fails (graceful degradation)
+  String? whoopToHsiDaily(String json, String timezone, String deviceId) {
     final jsonPtr = json.toNativeUtf8();
     final tzPtr = timezone.toNativeUtf8();
     final devicePtr = deviceId.toNativeUtf8();
@@ -382,15 +387,20 @@ class FluxNative {
       final resultPtr = _ffi.whoopToHsiDaily(jsonPtr, tzPtr, devicePtr);
 
       if (resultPtr == nullptr) {
+        // Log error but don't throw - graceful degradation
         final errorPtr = _ffi.lastError();
         final error =
             errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
-        throw FluxFfiException(error);
+        print('FluxNative: whoopToHsiDaily failed: $error');
+        return null;
       }
 
       final result = resultPtr.toDartString();
       _ffi.freeString(resultPtr);
       return result;
+    } catch (e) {
+      print('FluxNative: whoopToHsiDaily exception: $e');
+      return null;
     } finally {
       malloc.free(jsonPtr);
       malloc.free(tzPtr);
@@ -399,7 +409,8 @@ class FluxNative {
   }
 
   /// Process Garmin JSON and return HSI JSON (stateless)
-  String garminToHsiDaily(String json, String timezone, String deviceId) {
+  /// Returns null if processing fails (graceful degradation)
+  String? garminToHsiDaily(String json, String timezone, String deviceId) {
     final jsonPtr = json.toNativeUtf8();
     final tzPtr = timezone.toNativeUtf8();
     final devicePtr = deviceId.toNativeUtf8();
@@ -408,15 +419,20 @@ class FluxNative {
       final resultPtr = _ffi.garminToHsiDaily(jsonPtr, tzPtr, devicePtr);
 
       if (resultPtr == nullptr) {
+        // Log error but don't throw - graceful degradation
         final errorPtr = _ffi.lastError();
         final error =
             errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
-        throw FluxFfiException(error);
+        print('FluxNative: garminToHsiDaily failed: $error');
+        return null;
       }
 
       final result = resultPtr.toDartString();
       _ffi.freeString(resultPtr);
       return result;
+    } catch (e) {
+      print('FluxNative: garminToHsiDaily exception: $e');
+      return null;
     } finally {
       malloc.free(jsonPtr);
       malloc.free(tzPtr);
@@ -425,7 +441,7 @@ class FluxNative {
   }
 }
 
-/// Stateful Flux processor using native library
+/// Stateful Flux processor using native library with graceful degradation
 class FluxProcessorNative {
   final FluxFfi _ffi;
   Pointer<Void> _handle;
@@ -434,24 +450,40 @@ class FluxProcessorNative {
   FluxProcessorNative._(this._ffi, this._handle);
 
   /// Create a new native FluxProcessor
+  /// Returns null if native library is not available (graceful degradation)
   static FluxProcessorNative? create({int baselineWindowDays = 14}) {
     final ffi = FluxFfi.instance;
-    if (ffi == null) return null;
-
-    final handle = ffi.processorNew(baselineWindowDays);
-    if (handle == nullptr) {
+    if (ffi == null) {
+      print('FluxProcessorNative: Native library not available');
       return null;
     }
 
-    return FluxProcessorNative._(ffi, handle);
+    try {
+      final handle = ffi.processorNew(baselineWindowDays);
+      if (handle == nullptr) {
+        print('FluxProcessorNative: Failed to create processor handle');
+        return null;
+      }
+      return FluxProcessorNative._(ffi, handle);
+    } catch (e) {
+      print('FluxProcessorNative: Exception creating processor: $e');
+      return null;
+    }
   }
+
+  /// Check if native Flux is available
+  static bool get isAvailable => FluxFfi.isAvailable;
 
   /// Check if this processor has been disposed
   bool get isDisposed => _disposed;
 
   /// Process WHOOP JSON and return HSI JSON
-  String processWhoop(String json, String timezone, String deviceId) {
-    _checkNotDisposed();
+  /// Returns null if processing fails (graceful degradation)
+  String? processWhoop(String json, String timezone, String deviceId) {
+    if (_disposed) {
+      print('FluxProcessorNative: Processor has been disposed');
+      return null;
+    }
 
     final jsonPtr = json.toNativeUtf8();
     final tzPtr = timezone.toNativeUtf8();
@@ -469,12 +501,16 @@ class FluxProcessorNative {
         final errorPtr = _ffi.lastError();
         final error =
             errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
-        throw FluxFfiException(error);
+        print('FluxProcessorNative: processWhoop failed: $error');
+        return null;
       }
 
       final result = resultPtr.toDartString();
       _ffi.freeString(resultPtr);
       return result;
+    } catch (e) {
+      print('FluxProcessorNative: processWhoop exception: $e');
+      return null;
     } finally {
       malloc.free(jsonPtr);
       malloc.free(tzPtr);
@@ -483,8 +519,12 @@ class FluxProcessorNative {
   }
 
   /// Process Garmin JSON and return HSI JSON
-  String processGarmin(String json, String timezone, String deviceId) {
-    _checkNotDisposed();
+  /// Returns null if processing fails (graceful degradation)
+  String? processGarmin(String json, String timezone, String deviceId) {
+    if (_disposed) {
+      print('FluxProcessorNative: Processor has been disposed');
+      return null;
+    }
 
     final jsonPtr = json.toNativeUtf8();
     final tzPtr = timezone.toNativeUtf8();
@@ -502,12 +542,16 @@ class FluxProcessorNative {
         final errorPtr = _ffi.lastError();
         final error =
             errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
-        throw FluxFfiException(error);
+        print('FluxProcessorNative: processGarmin failed: $error');
+        return null;
       }
 
       final result = resultPtr.toDartString();
       _ffi.freeString(resultPtr);
       return result;
+    } catch (e) {
+      print('FluxProcessorNative: processGarmin exception: $e');
+      return null;
     } finally {
       malloc.free(jsonPtr);
       malloc.free(tzPtr);
@@ -516,26 +560,40 @@ class FluxProcessorNative {
   }
 
   /// Save baselines to JSON
-  String saveBaselines() {
-    _checkNotDisposed();
-
-    final resultPtr = _ffi.processorSaveBaselines(_handle);
-
-    if (resultPtr == nullptr) {
-      final errorPtr = _ffi.lastError();
-      final error =
-          errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
-      throw FluxFfiException(error);
+  /// Returns null if saving fails (graceful degradation)
+  String? saveBaselines() {
+    if (_disposed) {
+      print('FluxProcessorNative: Processor has been disposed');
+      return null;
     }
 
-    final result = resultPtr.toDartString();
-    _ffi.freeString(resultPtr);
-    return result;
+    try {
+      final resultPtr = _ffi.processorSaveBaselines(_handle);
+
+      if (resultPtr == nullptr) {
+        final errorPtr = _ffi.lastError();
+        final error =
+            errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
+        print('FluxProcessorNative: saveBaselines failed: $error');
+        return null;
+      }
+
+      final result = resultPtr.toDartString();
+      _ffi.freeString(resultPtr);
+      return result;
+    } catch (e) {
+      print('FluxProcessorNative: saveBaselines exception: $e');
+      return null;
+    }
   }
 
   /// Load baselines from JSON
-  void loadBaselines(String json) {
-    _checkNotDisposed();
+  /// Returns true if successful, false if failed (graceful degradation)
+  bool loadBaselines(String json) {
+    if (_disposed) {
+      print('FluxProcessorNative: Processor has been disposed');
+      return false;
+    }
 
     final jsonPtr = json.toNativeUtf8();
 
@@ -545,8 +603,13 @@ class FluxProcessorNative {
         final errorPtr = _ffi.lastError();
         final error =
             errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
-        throw FluxFfiException(error);
+        print('FluxProcessorNative: loadBaselines failed: $error');
+        return false;
       }
+      return true;
+    } catch (e) {
+      print('FluxProcessorNative: loadBaselines exception: $e');
+      return false;
     } finally {
       malloc.free(jsonPtr);
     }
@@ -556,13 +619,11 @@ class FluxProcessorNative {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    _ffi.processorFree(_handle);
-    _handle = nullptr;
-  }
-
-  void _checkNotDisposed() {
-    if (_disposed) {
-      throw StateError('FluxProcessorNative has been disposed');
+    try {
+      _ffi.processorFree(_handle);
+    } catch (e) {
+      print('FluxProcessorNative: dispose exception: $e');
     }
+    _handle = nullptr;
   }
 }

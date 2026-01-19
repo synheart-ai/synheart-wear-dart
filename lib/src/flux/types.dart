@@ -381,7 +381,7 @@ class ContextualSignals {
   });
 }
 
-/// HSI producer metadata
+/// HSI 1.0 producer metadata
 class HsiProducer {
   final String name;
   final String version;
@@ -398,57 +398,274 @@ class HsiProducer {
         'version': version,
         'instance_id': instanceId,
       };
+
+  factory HsiProducer.fromJson(Map<String, dynamic> json) => HsiProducer(
+        name: json['name'] as String,
+        version: json['version'] as String,
+        instanceId: json['instance_id'] as String,
+      );
 }
 
-/// HSI provenance information
-class HsiProvenance {
-  final String sourceVendor;
-  final String sourceDeviceId;
-  final String observedAtUtc;
-  final String computedAtUtc;
+/// HSI 1.0 time window
+class HsiWindow {
+  final String start;
+  final String end;
+  final String? label;
 
-  const HsiProvenance({
-    required this.sourceVendor,
-    required this.sourceDeviceId,
-    required this.observedAtUtc,
-    required this.computedAtUtc,
+  const HsiWindow({
+    required this.start,
+    required this.end,
+    this.label,
   });
 
   Map<String, dynamic> toJson() => {
-        'source_vendor': sourceVendor,
-        'source_device_id': sourceDeviceId,
-        'observed_at_utc': observedAtUtc,
-        'computed_at_utc': computedAtUtc,
+        'start': start,
+        'end': end,
+        if (label != null) 'label': label,
       };
+
+  factory HsiWindow.fromJson(Map<String, dynamic> json) => HsiWindow(
+        start: json['start'] as String,
+        end: json['end'] as String,
+        label: json['label'] as String?,
+      );
 }
 
-/// HSI quality metrics
-class HsiQuality {
-  /// Data completeness (0-1)
-  final double coverage;
+/// HSI 1.0 source type
+enum HsiSourceType {
+  sensor,
+  app,
+  selfReport,
+  observer,
+  derived,
+  other;
 
-  /// Seconds since observation
-  final int freshnessSec;
+  String get value {
+    switch (this) {
+      case HsiSourceType.sensor:
+        return 'sensor';
+      case HsiSourceType.app:
+        return 'app';
+      case HsiSourceType.selfReport:
+        return 'self_report';
+      case HsiSourceType.observer:
+        return 'observer';
+      case HsiSourceType.derived:
+        return 'derived';
+      case HsiSourceType.other:
+        return 'other';
+    }
+  }
 
-  /// Overall confidence in the signals (0-1)
+  static HsiSourceType fromString(String s) {
+    switch (s) {
+      case 'sensor':
+        return HsiSourceType.sensor;
+      case 'app':
+        return HsiSourceType.app;
+      case 'self_report':
+        return HsiSourceType.selfReport;
+      case 'observer':
+        return HsiSourceType.observer;
+      case 'derived':
+        return HsiSourceType.derived;
+      default:
+        return HsiSourceType.other;
+    }
+  }
+}
+
+/// HSI 1.0 data source
+class HsiSource {
+  final HsiSourceType type;
+  final double quality;
+  final bool degraded;
+  final String? notes;
+
+  const HsiSource({
+    required this.type,
+    required this.quality,
+    this.degraded = false,
+    this.notes,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'type': type.value,
+        'quality': quality,
+        'degraded': degraded,
+        if (notes != null) 'notes': notes,
+      };
+
+  factory HsiSource.fromJson(Map<String, dynamic> json) => HsiSource(
+        type: HsiSourceType.fromString(json['type'] as String),
+        quality: (json['quality'] as num).toDouble(),
+        degraded: json['degraded'] as bool? ?? false,
+        notes: json['notes'] as String?,
+      );
+}
+
+/// HSI 1.0 axis direction
+enum HsiDirection {
+  higherIsMore,
+  higherIsLess,
+  bidirectional;
+
+  String get value {
+    switch (this) {
+      case HsiDirection.higherIsMore:
+        return 'higher_is_more';
+      case HsiDirection.higherIsLess:
+        return 'higher_is_less';
+      case HsiDirection.bidirectional:
+        return 'bidirectional';
+    }
+  }
+
+  static HsiDirection fromString(String s) {
+    switch (s) {
+      case 'higher_is_more':
+        return HsiDirection.higherIsMore;
+      case 'higher_is_less':
+        return HsiDirection.higherIsLess;
+      case 'bidirectional':
+        return HsiDirection.bidirectional;
+      default:
+        return HsiDirection.higherIsMore;
+    }
+  }
+}
+
+/// HSI 1.0 axis reading
+class HsiAxisReading {
+  final String axis;
+  final double score;
   final double confidence;
+  final String windowId;
+  final HsiDirection direction;
+  final String? unit;
+  final List<String> evidenceSourceIds;
+  final String? notes;
 
-  /// Quality flags
-  final List<String> flags;
-
-  const HsiQuality({
-    required this.coverage,
-    required this.freshnessSec,
+  const HsiAxisReading({
+    required this.axis,
+    required this.score,
     required this.confidence,
-    this.flags = const [],
+    required this.windowId,
+    required this.direction,
+    this.unit,
+    this.evidenceSourceIds = const [],
+    this.notes,
   });
 
   Map<String, dynamic> toJson() => {
-        'coverage': coverage,
-        'freshness_sec': freshnessSec,
+        'axis': axis,
+        'score': score,
         'confidence': confidence,
-        'flags': flags,
+        'window_id': windowId,
+        'direction': direction.value,
+        if (unit != null) 'unit': unit,
+        'evidence_source_ids': evidenceSourceIds,
+        if (notes != null) 'notes': notes,
       };
+
+  factory HsiAxisReading.fromJson(Map<String, dynamic> json) => HsiAxisReading(
+        axis: json['axis'] as String,
+        score: (json['score'] as num).toDouble(),
+        confidence: (json['confidence'] as num).toDouble(),
+        windowId: json['window_id'] as String,
+        direction: HsiDirection.fromString(json['direction'] as String),
+        unit: json['unit'] as String?,
+        evidenceSourceIds: (json['evidence_source_ids'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
+        notes: json['notes'] as String?,
+      );
+}
+
+/// HSI 1.0 axes domain (e.g., behavior, affect, engagement)
+class HsiAxesDomain {
+  final List<HsiAxisReading> readings;
+
+  const HsiAxesDomain({this.readings = const []});
+
+  Map<String, dynamic> toJson() => {
+        'readings': readings.map((r) => r.toJson()).toList(),
+      };
+
+  factory HsiAxesDomain.fromJson(Map<String, dynamic> json) => HsiAxesDomain(
+        readings: (json['readings'] as List<dynamic>?)
+                ?.map((e) => HsiAxisReading.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+      );
+}
+
+/// HSI 1.0 axes container
+class HsiAxes {
+  final HsiAxesDomain? affect;
+  final HsiAxesDomain? engagement;
+  final HsiAxesDomain? behavior;
+
+  const HsiAxes({
+    this.affect,
+    this.engagement,
+    this.behavior,
+  });
+
+  Map<String, dynamic> toJson() => {
+        if (affect != null) 'affect': affect!.toJson(),
+        if (engagement != null) 'engagement': engagement!.toJson(),
+        if (behavior != null) 'behavior': behavior!.toJson(),
+      };
+
+  factory HsiAxes.fromJson(Map<String, dynamic> json) => HsiAxes(
+        affect: json['affect'] != null
+            ? HsiAxesDomain.fromJson(json['affect'] as Map<String, dynamic>)
+            : null,
+        engagement: json['engagement'] != null
+            ? HsiAxesDomain.fromJson(json['engagement'] as Map<String, dynamic>)
+            : null,
+        behavior: json['behavior'] != null
+            ? HsiAxesDomain.fromJson(json['behavior'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+/// HSI 1.0 privacy declarations
+class HsiPrivacy {
+  final bool containsPii;
+  final bool rawBiosignalsAllowed;
+  final bool derivedMetricsAllowed;
+  final List<String> purposes;
+  final String? notes;
+
+  const HsiPrivacy({
+    this.containsPii = false,
+    this.rawBiosignalsAllowed = false,
+    this.derivedMetricsAllowed = true,
+    this.purposes = const [],
+    this.notes,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'contains_pii': containsPii,
+        'raw_biosignals_allowed': rawBiosignalsAllowed,
+        'derived_metrics_allowed': derivedMetricsAllowed,
+        if (purposes.isNotEmpty) 'purposes': purposes,
+        if (notes != null) 'notes': notes,
+      };
+
+  factory HsiPrivacy.fromJson(Map<String, dynamic> json) => HsiPrivacy(
+        containsPii: json['contains_pii'] as bool? ?? false,
+        rawBiosignalsAllowed: json['raw_biosignals_allowed'] as bool? ?? false,
+        derivedMetricsAllowed: json['derived_metrics_allowed'] as bool? ?? true,
+        purposes: (json['purposes'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
+        notes: json['notes'] as String?,
+      );
 }
 
 /// HSI sleep namespace signals
@@ -582,8 +799,93 @@ class HsiBaseline {
       };
 }
 
-/// HSI daily window
-class HsiDailyWindow {
+/// HSI daily window (legacy, kept for backward compatibility)
+/// @deprecated Use HsiWindow + HsiAxisReading for HSI 1.0 output
+@Deprecated('Use HsiWindow + HsiAxisReading for HSI 1.0 output')
+typedef HsiDailyWindow = LegacyHsiDailyWindow;
+
+/// Complete HSI 1.0 payload
+class HsiPayload {
+  final String hsiVersion;
+  final String observedAtUtc;
+  final String computedAtUtc;
+  final HsiProducer producer;
+  final List<String> windowIds;
+  final Map<String, HsiWindow> windows;
+  final List<String> sourceIds;
+  final Map<String, HsiSource> sources;
+  final HsiAxes axes;
+  final HsiPrivacy privacy;
+  final Map<String, dynamic> meta;
+
+  const HsiPayload({
+    required this.hsiVersion,
+    required this.observedAtUtc,
+    required this.computedAtUtc,
+    required this.producer,
+    required this.windowIds,
+    required this.windows,
+    required this.sourceIds,
+    required this.sources,
+    required this.axes,
+    required this.privacy,
+    this.meta = const {},
+  });
+
+  Map<String, dynamic> toJson() => {
+        'hsi_version': hsiVersion,
+        'observed_at_utc': observedAtUtc,
+        'computed_at_utc': computedAtUtc,
+        'producer': producer.toJson(),
+        'window_ids': windowIds,
+        'windows': windows.map((k, v) => MapEntry(k, v.toJson())),
+        'source_ids': sourceIds,
+        'sources': sources.map((k, v) => MapEntry(k, v.toJson())),
+        'axes': axes.toJson(),
+        'privacy': privacy.toJson(),
+        if (meta.isNotEmpty) 'meta': meta,
+      };
+
+  factory HsiPayload.fromJson(Map<String, dynamic> json) {
+    final windowsJson = json['windows'] as Map<String, dynamic>? ?? {};
+    final sourcesJson = json['sources'] as Map<String, dynamic>? ?? {};
+
+    return HsiPayload(
+      hsiVersion: json['hsi_version'] as String,
+      observedAtUtc: json['observed_at_utc'] as String,
+      computedAtUtc: json['computed_at_utc'] as String,
+      producer:
+          HsiProducer.fromJson(json['producer'] as Map<String, dynamic>),
+      windowIds: (json['window_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      windows: windowsJson.map(
+        (k, v) => MapEntry(k, HsiWindow.fromJson(v as Map<String, dynamic>)),
+      ),
+      sourceIds: (json['source_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      sources: sourcesJson.map(
+        (k, v) => MapEntry(k, HsiSource.fromJson(v as Map<String, dynamic>)),
+      ),
+      axes: HsiAxes.fromJson(json['axes'] as Map<String, dynamic>? ?? {}),
+      privacy:
+          HsiPrivacy.fromJson(json['privacy'] as Map<String, dynamic>? ?? {}),
+      meta: json['meta'] as Map<String, dynamic>? ?? {},
+    );
+  }
+}
+
+// =============================================================================
+// Legacy types for internal wearable data processing
+// These are used internally and converted to HSI 1.0 axis readings for output
+// =============================================================================
+
+/// @deprecated Use HsiAxisReading instead for HSI 1.0 output
+@Deprecated('Use HsiAxisReading for HSI 1.0 output. Kept for internal processing.')
+class LegacyHsiDailyWindow {
   final String date;
   final String timezone;
   final HsiSleep sleep;
@@ -591,7 +893,7 @@ class HsiDailyWindow {
   final HsiActivity activity;
   final HsiBaseline baseline;
 
-  const HsiDailyWindow({
+  const LegacyHsiDailyWindow({
     required this.date,
     required this.timezone,
     required this.sleep,
@@ -607,30 +909,5 @@ class HsiDailyWindow {
         'physiology': physiology.toJson(),
         'activity': activity.toJson(),
         'baseline': baseline.toJson(),
-      };
-}
-
-/// Complete HSI payload
-class HsiPayload {
-  final String hsiVersion;
-  final HsiProducer producer;
-  final HsiProvenance provenance;
-  final HsiQuality quality;
-  final List<HsiDailyWindow> windows;
-
-  const HsiPayload({
-    required this.hsiVersion,
-    required this.producer,
-    required this.provenance,
-    required this.quality,
-    required this.windows,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'hsi_version': hsiVersion,
-        'producer': producer.toJson(),
-        'provenance': provenance.toJson(),
-        'quality': quality.toJson(),
-        'windows': windows.map((w) => w.toJson()).toList(),
       };
 }

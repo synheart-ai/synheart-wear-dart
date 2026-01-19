@@ -258,29 +258,40 @@ This package includes **Flux**, a compute pipeline that converts vendor payloads
 
 Flux is implemented in **Rust** and called via Dart **FFI**. To activate Flux, your app must bundle the native library for your platform.
 
-- **If you install from pub.dev**: Flux native binaries are **already bundled** in this package under `vendor/flux/**` (no extra download step needed).
-- **If you build from source / want custom binaries**: you can replace the files under `vendor/flux/**` (or build Flux yourself) and ship those instead.
+- **If you install from pub.dev**: Flux native binaries are **already included** (nothing to do).
+- **If you’re developing this repo from source / CI needs to refresh binaries**: download the pinned Flux release artifacts into `vendor/flux/**` by running:
 
-- **Android**: `libsynheart_flux.so` in `vendor/flux/android/jniLibs/<abi>/`
-  - Example: `vendor/flux/android/jniLibs/arm64-v8a/libsynheart_flux.so`
-- **iOS**: `vendor/flux/ios/SynheartFlux.xcframework`
+```bash
+bash tool/fetch_flux_binaries.sh
+```
+
+- **Pinned version**: `vendor/flux/VERSION` (tag in the Flux repo)
+- **Private releases / rate limits (optional)**: set `FLUX_GITHUB_TOKEN`
+- **Override version (optional)**: set `FLUX_VERSION=vX.Y.Z`
+- **Override repo (optional)**: set `FLUX_REPO=org/repo`
+
+#### What gets bundled (by platform)
+
+- **Android**: `vendor/flux/android/jniLibs/<abi>/libsynheart_flux.so`  
+  Bundled automatically via `android/build.gradle` (`main.jniLibs.srcDirs += ['../vendor/flux/android/jniLibs']`).
+- **iOS**: `vendor/flux/ios/SynheartFlux.xcframework`  
+  Bundled automatically via `ios/synheart_wear.podspec` (adds `vendored_frameworks` when present).
 - **Desktop (optional)**:
   - macOS: `vendor/flux/desktop/mac/macos-arm64/libsynheart_flux.dylib`
   - Linux: `vendor/flux/desktop/linux/linux-x86_64/libsynheart_flux.so`
   - Windows: `vendor/flux/desktop/win/synheart_flux.dll`
 
-**Desktop note:** vendoring the `.dylib/.so/.dll` inside the Dart package doesn’t automatically bundle it into your desktop app executable. If you want Flux on desktop, bundle/copy the native library into your app, or set:
+#### Desktop runtime note (FFI loading)
+
+Vendoring a `.dylib/.so/.dll` in the package doesn’t automatically copy it into your desktop app bundle. If Flux isn’t found at runtime, either bundle/copy the library into your app, or set one of:
 
 - `SYNHEART_FLUX_LIB_PATH=/absolute/path/to/libsynheart_flux.(dylib|so)` (or `synheart_flux.dll`)
-- (optional) `SYNHEART_FLUX_VENDOR_DIR=/absolute/path/to/vendor/flux`
+- `SYNHEART_FLUX_VENDOR_DIR=/absolute/path/to/vendor/flux` (Flux will try `desktop/<platform>/...` under this directory)
 
-**Where do these binaries come from?**
+#### Where the binaries come from / custom builds
 
-- They are published as release artifacts in the Flux repo: [synheart-flux releases](https://github.com/synheart-ai/synheart-flux/releases)
-- This repository pins the desired Flux version in `vendor/flux/VERSION`.
-- If you’re building this package from source, download the matching artifacts and place them into the `vendor/flux/` structure above (see `vendor/flux/README.md`).
-
-**Build your own Flux binaries:** you can build Flux from source in the Flux repository and drop the resulting artifacts into the same `vendor/flux/**` layout (or point `SYNHEART_FLUX_LIB_PATH` at your built library).
+- **Release artifacts**: [synheart-flux releases](https://github.com/synheart-ai/synheart-flux/releases)
+- **Custom binaries**: build Flux from source and drop the artifacts into the same `vendor/flux/**` layout (or point `SYNHEART_FLUX_LIB_PATH` at your built library).
 
 ### Activate (runtime check)
 

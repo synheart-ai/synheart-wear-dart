@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# If someone runs this script with `zsh tool/fetch_flux_binaries.sh` (or `sh ...`),
+# the shebang is ignored and bash-specific features (arrays) can break under
+# `set -u`. Re-exec under bash to be robust.
+if [[ -z "${BASH_VERSION:-}" ]]; then
+  exec /usr/bin/env bash "$0" "$@"
+fi
+
 # Fetch Synheart Flux native binaries into vendor/flux/** based on vendor/flux/VERSION.
 #
 # Expected:
@@ -26,11 +33,6 @@ fi
 
 BASE_URL="https://github.com/${FLUX_REPO}/releases/download/${FLUX_VERSION}"
 
-AUTH_HEADER=()
-if [[ -n "${FLUX_GITHUB_TOKEN:-}" ]]; then
-  AUTH_HEADER=(-H "Authorization: token ${FLUX_GITHUB_TOKEN}")
-fi
-
 echo "Fetching Flux binaries"
 echo "  repo: ${FLUX_REPO}"
 echo "  tag:  ${FLUX_VERSION}"
@@ -45,7 +47,11 @@ download() {
   local url="$1"
   local out="$2"
   echo "  - download: ${url}"
-  curl -fL "${AUTH_HEADER[@]}" "${url}" -o "${out}"
+  if [[ -n "${FLUX_GITHUB_TOKEN:-}" ]]; then
+    curl -fL -H "Authorization: token ${FLUX_GITHUB_TOKEN}" "${url}" -o "${out}"
+  else
+    curl -fL "${url}" -o "${out}"
+  fi
 }
 
 # Android JNI libs

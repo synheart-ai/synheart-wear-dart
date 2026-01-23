@@ -113,6 +113,25 @@ class FluxFfi {
   static String? _loadError;
   static String? _overrideLibraryPath;
 
+  /// Symbols that must exist in a compatible Flux native library.
+  ///
+  /// If a library can be opened but is missing any of these symbols, it is
+  /// treated as incompatible (often due to an older/newer Flux binary being
+  /// picked up from the process/CWD search path).
+  static const List<String> _requiredSymbols = <String>[
+    'flux_whoop_to_hsi_daily',
+    'flux_garmin_to_hsi_daily',
+    'flux_processor_new',
+    'flux_processor_free',
+    'flux_processor_process_whoop',
+    'flux_processor_process_garmin',
+    'flux_processor_save_baselines',
+    'flux_processor_load_baselines',
+    'flux_free_string',
+    'flux_last_error',
+    'flux_version',
+  ];
+
   final DynamicLibrary _lib;
 
   late final FluxWhoopToHsiDailyDart whoopToHsiDaily;
@@ -227,61 +246,87 @@ class FluxFfi {
   static DynamicLibrary _loadLibrary() {
     final errors = <String>[];
 
-    DynamicLibrary tryOpen(String path) {
+    DynamicLibrary? tryOpen(String path) {
       try {
         return DynamicLibrary.open(path);
       } catch (e) {
         errors.add('$path -> $e');
-        rethrow;
+        return null;
       }
+    }
+
+    DynamicLibrary? validateSymbols(DynamicLibrary lib, String source) {
+      final missing = <String>[];
+      for (final symbol in _requiredSymbols) {
+        try {
+          // We only care whether the symbol exists, not the signature here.
+          lib.lookup<NativeFunction<Void Function()>>(symbol);
+        } catch (_) {
+          missing.add(symbol);
+        }
+      }
+
+      if (missing.isNotEmpty) {
+        errors.add(
+          '$source -> missing required symbols: ${missing.join(', ')}',
+        );
+        return null;
+      }
+      return lib;
+    }
+
+    DynamicLibrary? tryCandidatePath(String path) {
+      final lib = tryOpen(path);
+      if (lib == null) return null;
+      return validateSymbols(lib, path);
     }
 
     // Allow overriding via API or env var (handy for desktop).
     final envOverride = Platform.environment['SYNHEART_FLUX_LIB_PATH'];
     final override = _overrideLibraryPath ?? envOverride;
     if (override != null && override.trim().isNotEmpty) {
-      try {
-        return tryOpen(override.trim());
-      } catch (_) {
-        // fall through to normal search
-      }
+      final lib = tryCandidatePath(override.trim());
+      if (lib != null) return lib;
     }
 
     if (Platform.isAndroid) {
       // Bundled via android/build.gradle (jniLibs).
-      return tryOpen('libsynheart_flux.so');
+      final lib = tryCandidatePath('libsynheart_flux.so');
+      if (lib != null) return lib;
     } else if (Platform.isIOS) {
       // Bundled via ios/synheart_wear.podspec (XCFramework); symbols are in-process.
-      return DynamicLibrary.process();
+      final lib = validateSymbols(DynamicLibrary.process(), 'DynamicLibrary.process()');
+      if (lib != null) return lib;
     } else if (Platform.isMacOS) {
-      // Try app bundle first, then vendored locations (best-effort).
-      try {
-        return tryOpen('libsynheart_flux.dylib');
-      } catch (_) {
-        final lib = _tryOpenVendoredDesktopLib(
-          relativePath: 'vendor/flux/desktop/mac/macos-arm64/libsynheart_flux.dylib',
-          tryOpen: tryOpen,
-        );
+      // Try app bundle first, then vendored locations (best-effort). Also validate
+      // symbols so we don't accidentally bind against an incompatible library.
+      final direct = tryCandidatePath('libsynheart_flux.dylib');
+      if (direct != null) return direct;
+
+      for (final candidate in _vendoredDesktopCandidates(
+        relativePath: 'vendor/flux/desktop/mac/macos-arm64/libsynheart_flux.dylib',
+      )) {
+        final lib = tryCandidatePath(candidate);
         if (lib != null) return lib;
       }
     } else if (Platform.isLinux) {
-      try {
-        return tryOpen('libsynheart_flux.so');
-      } catch (_) {
-        final lib = _tryOpenVendoredDesktopLib(
-          relativePath: 'vendor/flux/desktop/linux/linux-x86_64/libsynheart_flux.so',
-          tryOpen: tryOpen,
-        );
+      final direct = tryCandidatePath('libsynheart_flux.so');
+      if (direct != null) return direct;
+
+      for (final candidate in _vendoredDesktopCandidates(
+        relativePath: 'vendor/flux/desktop/linux/linux-x86_64/libsynheart_flux.so',
+      )) {
+        final lib = tryCandidatePath(candidate);
         if (lib != null) return lib;
       }
     } else if (Platform.isWindows) {
-      try {
-        return tryOpen('synheart_flux.dll');
-      } catch (_) {
-        final lib = _tryOpenVendoredDesktopLib(
-          relativePath: 'vendor/flux/desktop/win/synheart_flux.dll',
-          tryOpen: tryOpen,
-        );
+      final direct = tryCandidatePath('synheart_flux.dll');
+      if (direct != null) return direct;
+
+      for (final candidate in _vendoredDesktopCandidates(
+        relativePath: 'vendor/flux/desktop/win/synheart_flux.dll',
+      )) {
+        final lib = tryCandidatePath(candidate);
         if (lib != null) return lib;
       }
     } else {
@@ -296,40 +341,29 @@ class FluxFfi {
     );
   }
 
-  static DynamicLibrary? _tryOpenVendoredDesktopLib({
+  static List<String> _vendoredDesktopCandidates({
     required String relativePath,
-    required DynamicLibrary Function(String path) tryOpen,
   }) {
+    final candidates = <String>[];
+
     // 1) Relative to current working directory (common for dev/tests).
-    try {
-      return tryOpen(relativePath);
-    } catch (_) {
-      // continue
-    }
+    candidates.add(relativePath);
 
     // 2) Relative to a user-provided vendor directory (absolute or relative).
     final vendorDir = Platform.environment['SYNHEART_FLUX_VENDOR_DIR'];
     if (vendorDir != null && vendorDir.trim().isNotEmpty) {
-      final candidate = '${vendorDir.trim()}/${relativePath.replaceFirst('vendor/', '')}';
-      try {
-        return tryOpen(candidate);
-      } catch (_) {
-        // continue
-      }
+      candidates.add(
+        '${vendorDir.trim()}/${relativePath.replaceFirst('vendor/', '')}',
+      );
     }
 
     // 3) Walk up from CWD to find a repo/package root that contains vendor/flux/.
     final root = _findAncestorWithVendorFlux(Directory.current);
     if (root != null) {
-      final candidate = '${root.path}/$relativePath';
-      try {
-        return tryOpen(candidate);
-      } catch (_) {
-        // continue
-      }
+      candidates.add('${root.path}/$relativePath');
     }
 
-    return null;
+    return candidates;
   }
 
   static Directory? _findAncestorWithVendorFlux(Directory start) {

@@ -12,29 +12,33 @@ import 'package:ffi/ffi.dart';
 
 /// Stateless: Process WHOOP JSON and return HSI JSON
 /// `char* flux_whoop_to_hsi_daily(const char* json, const char* timezone, const char* device_id)`
-typedef FluxWhoopToHsiDailyNative = Pointer<Utf8> Function(
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
-typedef FluxWhoopToHsiDailyDart = Pointer<Utf8> Function(
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
+typedef FluxWhoopToHsiDailyNative =
+    Pointer<Utf8> Function(
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
+typedef FluxWhoopToHsiDailyDart =
+    Pointer<Utf8> Function(
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
 
 /// Stateless: Process Garmin JSON and return HSI JSON
 /// `char* flux_garmin_to_hsi_daily(const char* json, const char* timezone, const char* device_id)`
-typedef FluxGarminToHsiDailyNative = Pointer<Utf8> Function(
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
-typedef FluxGarminToHsiDailyDart = Pointer<Utf8> Function(
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
+typedef FluxGarminToHsiDailyNative =
+    Pointer<Utf8> Function(
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
+typedef FluxGarminToHsiDailyDart =
+    Pointer<Utf8> Function(
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
 
 /// Create a new FluxProcessor instance
 /// `void* flux_processor_new(int32_t baseline_window_days)`
@@ -48,53 +52,51 @@ typedef FluxProcessorFreeDart = void Function(Pointer<Void> processor);
 
 /// Process WHOOP data with stateful processor
 /// `char* flux_processor_process_whoop(void* processor, const char* json, const char* timezone, const char* device_id)`
-typedef FluxProcessorProcessWhoopNative = Pointer<Utf8> Function(
-  Pointer<Void> processor,
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
-typedef FluxProcessorProcessWhoopDart = Pointer<Utf8> Function(
-  Pointer<Void> processor,
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
+typedef FluxProcessorProcessWhoopNative =
+    Pointer<Utf8> Function(
+      Pointer<Void> processor,
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
+typedef FluxProcessorProcessWhoopDart =
+    Pointer<Utf8> Function(
+      Pointer<Void> processor,
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
 
 /// Process Garmin data with stateful processor
 /// `char* flux_processor_process_garmin(void* processor, const char* json, const char* timezone, const char* device_id)`
-typedef FluxProcessorProcessGarminNative = Pointer<Utf8> Function(
-  Pointer<Void> processor,
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
-typedef FluxProcessorProcessGarminDart = Pointer<Utf8> Function(
-  Pointer<Void> processor,
-  Pointer<Utf8> json,
-  Pointer<Utf8> timezone,
-  Pointer<Utf8> deviceId,
-);
+typedef FluxProcessorProcessGarminNative =
+    Pointer<Utf8> Function(
+      Pointer<Void> processor,
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
+typedef FluxProcessorProcessGarminDart =
+    Pointer<Utf8> Function(
+      Pointer<Void> processor,
+      Pointer<Utf8> json,
+      Pointer<Utf8> timezone,
+      Pointer<Utf8> deviceId,
+    );
 
 /// Save processor baselines to JSON
 /// `char* flux_processor_save_baselines(void* processor)`
-typedef FluxProcessorSaveBaselinesNative = Pointer<Utf8> Function(
-  Pointer<Void> processor,
-);
-typedef FluxProcessorSaveBaselinesDart = Pointer<Utf8> Function(
-  Pointer<Void> processor,
-);
+typedef FluxProcessorSaveBaselinesNative =
+    Pointer<Utf8> Function(Pointer<Void> processor);
+typedef FluxProcessorSaveBaselinesDart =
+    Pointer<Utf8> Function(Pointer<Void> processor);
 
 /// Load processor baselines from JSON
 /// `int32_t flux_processor_load_baselines(void* processor, const char* json)`
-typedef FluxProcessorLoadBaselinesNative = Int32 Function(
-  Pointer<Void> processor,
-  Pointer<Utf8> json,
-);
-typedef FluxProcessorLoadBaselinesDart = int Function(
-  Pointer<Void> processor,
-  Pointer<Utf8> json,
-);
+typedef FluxProcessorLoadBaselinesNative =
+    Int32 Function(Pointer<Void> processor, Pointer<Utf8> json);
+typedef FluxProcessorLoadBaselinesDart =
+    int Function(Pointer<Void> processor, Pointer<Utf8> json);
 
 /// Free a string returned by Flux
 /// `void flux_free_string(char* ptr)`
@@ -148,46 +150,49 @@ class FluxFfi {
   FluxFfi._(this._lib) {
     whoopToHsiDaily = _lib
         .lookupFunction<FluxWhoopToHsiDailyNative, FluxWhoopToHsiDailyDart>(
-      'flux_whoop_to_hsi_daily',
-    );
+          'flux_whoop_to_hsi_daily',
+        );
 
     garminToHsiDaily = _lib
         .lookupFunction<FluxGarminToHsiDailyNative, FluxGarminToHsiDailyDart>(
-      'flux_garmin_to_hsi_daily',
-    );
+          'flux_garmin_to_hsi_daily',
+        );
 
-    processorNew =
-        _lib.lookupFunction<FluxProcessorNewNative, FluxProcessorNewDart>(
-      'flux_processor_new',
-    );
+    processorNew = _lib
+        .lookupFunction<FluxProcessorNewNative, FluxProcessorNewDart>(
+          'flux_processor_new',
+        );
 
-    processorFree =
-        _lib.lookupFunction<FluxProcessorFreeNative, FluxProcessorFreeDart>(
-      'flux_processor_free',
-    );
+    processorFree = _lib
+        .lookupFunction<FluxProcessorFreeNative, FluxProcessorFreeDart>(
+          'flux_processor_free',
+        );
 
-    processorProcessWhoop = _lib.lookupFunction<
-        FluxProcessorProcessWhoopNative, FluxProcessorProcessWhoopDart>(
-      'flux_processor_process_whoop',
-    );
+    processorProcessWhoop = _lib
+        .lookupFunction<
+          FluxProcessorProcessWhoopNative,
+          FluxProcessorProcessWhoopDart
+        >('flux_processor_process_whoop');
 
-    processorProcessGarmin = _lib.lookupFunction<
-        FluxProcessorProcessGarminNative, FluxProcessorProcessGarminDart>(
-      'flux_processor_process_garmin',
-    );
+    processorProcessGarmin = _lib
+        .lookupFunction<
+          FluxProcessorProcessGarminNative,
+          FluxProcessorProcessGarminDart
+        >('flux_processor_process_garmin');
 
-    processorSaveBaselines = _lib.lookupFunction<
-        FluxProcessorSaveBaselinesNative, FluxProcessorSaveBaselinesDart>(
-      'flux_processor_save_baselines',
-    );
+    processorSaveBaselines = _lib
+        .lookupFunction<
+          FluxProcessorSaveBaselinesNative,
+          FluxProcessorSaveBaselinesDart
+        >('flux_processor_save_baselines');
 
-    processorLoadBaselines = _lib.lookupFunction<
-        FluxProcessorLoadBaselinesNative, FluxProcessorLoadBaselinesDart>(
-      'flux_processor_load_baselines',
-    );
+    processorLoadBaselines = _lib
+        .lookupFunction<
+          FluxProcessorLoadBaselinesNative,
+          FluxProcessorLoadBaselinesDart
+        >('flux_processor_load_baselines');
 
-    freeString =
-        _lib.lookupFunction<FluxFreeStringNative, FluxFreeStringDart>(
+    freeString = _lib.lookupFunction<FluxFreeStringNative, FluxFreeStringDart>(
       'flux_free_string',
     );
 
@@ -295,7 +300,10 @@ class FluxFfi {
       if (lib != null) return lib;
     } else if (Platform.isIOS) {
       // Bundled via ios/synheart_wear.podspec (XCFramework); symbols are in-process.
-      final lib = validateSymbols(DynamicLibrary.process(), 'DynamicLibrary.process()');
+      final lib = validateSymbols(
+        DynamicLibrary.process(),
+        'DynamicLibrary.process()',
+      );
       if (lib != null) return lib;
     } else if (Platform.isMacOS) {
       // Try app bundle first, then vendored locations (best-effort). Also validate
@@ -304,7 +312,8 @@ class FluxFfi {
       if (direct != null) return direct;
 
       for (final candidate in _vendoredDesktopCandidates(
-        relativePath: 'vendor/flux/desktop/mac/macos-arm64/libsynheart_flux.dylib',
+        relativePath:
+            'vendor/flux/desktop/mac/macos-arm64/libsynheart_flux.dylib',
       )) {
         final lib = tryCandidatePath(candidate);
         if (lib != null) return lib;
@@ -314,7 +323,8 @@ class FluxFfi {
       if (direct != null) return direct;
 
       for (final candidate in _vendoredDesktopCandidates(
-        relativePath: 'vendor/flux/desktop/linux/linux-x86_64/libsynheart_flux.so',
+        relativePath:
+            'vendor/flux/desktop/linux/linux-x86_64/libsynheart_flux.so',
       )) {
         final lib = tryCandidatePath(candidate);
         if (lib != null) return lib;
@@ -330,7 +340,9 @@ class FluxFfi {
         if (lib != null) return lib;
       }
     } else {
-      throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
+      throw UnsupportedError(
+        'Unsupported platform: ${Platform.operatingSystem}',
+      );
     }
 
     // If we got here, we tried reasonable options but still failed.
@@ -423,8 +435,9 @@ class FluxNative {
       if (resultPtr == nullptr) {
         // Log error but don't throw - graceful degradation
         final errorPtr = _ffi.lastError();
-        final error =
-            errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
+        final error = errorPtr != nullptr
+            ? errorPtr.toDartString()
+            : 'Unknown error';
         print('FluxNative: whoopToHsiDaily failed: $error');
         return null;
       }
@@ -455,8 +468,9 @@ class FluxNative {
       if (resultPtr == nullptr) {
         // Log error but don't throw - graceful degradation
         final errorPtr = _ffi.lastError();
-        final error =
-            errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
+        final error = errorPtr != nullptr
+            ? errorPtr.toDartString()
+            : 'Unknown error';
         print('FluxNative: garminToHsiDaily failed: $error');
         return null;
       }
@@ -533,8 +547,9 @@ class FluxProcessorNative {
 
       if (resultPtr == nullptr) {
         final errorPtr = _ffi.lastError();
-        final error =
-            errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
+        final error = errorPtr != nullptr
+            ? errorPtr.toDartString()
+            : 'Unknown error';
         print('FluxProcessorNative: processWhoop failed: $error');
         return null;
       }
@@ -574,8 +589,9 @@ class FluxProcessorNative {
 
       if (resultPtr == nullptr) {
         final errorPtr = _ffi.lastError();
-        final error =
-            errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
+        final error = errorPtr != nullptr
+            ? errorPtr.toDartString()
+            : 'Unknown error';
         print('FluxProcessorNative: processGarmin failed: $error');
         return null;
       }
@@ -606,8 +622,9 @@ class FluxProcessorNative {
 
       if (resultPtr == nullptr) {
         final errorPtr = _ffi.lastError();
-        final error =
-            errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
+        final error = errorPtr != nullptr
+            ? errorPtr.toDartString()
+            : 'Unknown error';
         print('FluxProcessorNative: saveBaselines failed: $error');
         return null;
       }
@@ -635,8 +652,9 @@ class FluxProcessorNative {
       final result = _ffi.processorLoadBaselines(_handle, jsonPtr);
       if (result != 0) {
         final errorPtr = _ffi.lastError();
-        final error =
-            errorPtr != nullptr ? errorPtr.toDartString() : 'Unknown error';
+        final error = errorPtr != nullptr
+            ? errorPtr.toDartString()
+            : 'Unknown error';
         print('FluxProcessorNative: loadBaselines failed: $error');
         return false;
       }

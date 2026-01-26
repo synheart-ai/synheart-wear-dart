@@ -19,13 +19,7 @@ enum Vendor {
 }
 
 /// Sleep stage classification (vendor-agnostic)
-enum SleepStage {
-  awake,
-  light,
-  deep,
-  rem,
-  unknown,
-}
+enum SleepStage { awake, light, deep, rem, unknown }
 
 /// Quality flag indicating data issues
 enum QualityFlag {
@@ -95,19 +89,19 @@ class CanonicalSleep {
   });
 
   Map<String, dynamic> toJson() => {
-        if (startTime != null) 'start_time': startTime!.toIso8601String(),
-        if (endTime != null) 'end_time': endTime!.toIso8601String(),
-        if (timeInBedMinutes != null) 'time_in_bed_minutes': timeInBedMinutes,
-        if (totalSleepMinutes != null) 'total_sleep_minutes': totalSleepMinutes,
-        if (awakeMinutes != null) 'awake_minutes': awakeMinutes,
-        if (lightSleepMinutes != null) 'light_sleep_minutes': lightSleepMinutes,
-        if (deepSleepMinutes != null) 'deep_sleep_minutes': deepSleepMinutes,
-        if (remSleepMinutes != null) 'rem_sleep_minutes': remSleepMinutes,
-        if (awakenings != null) 'awakenings': awakenings,
-        if (latencyMinutes != null) 'latency_minutes': latencyMinutes,
-        if (vendorSleepScore != null) 'vendor_sleep_score': vendorSleepScore,
-        if (respiratoryRate != null) 'respiratory_rate': respiratoryRate,
-      };
+    if (startTime != null) 'start_time': startTime!.toIso8601String(),
+    if (endTime != null) 'end_time': endTime!.toIso8601String(),
+    if (timeInBedMinutes != null) 'time_in_bed_minutes': timeInBedMinutes,
+    if (totalSleepMinutes != null) 'total_sleep_minutes': totalSleepMinutes,
+    if (awakeMinutes != null) 'awake_minutes': awakeMinutes,
+    if (lightSleepMinutes != null) 'light_sleep_minutes': lightSleepMinutes,
+    if (deepSleepMinutes != null) 'deep_sleep_minutes': deepSleepMinutes,
+    if (remSleepMinutes != null) 'rem_sleep_minutes': remSleepMinutes,
+    if (awakenings != null) 'awakenings': awakenings,
+    if (latencyMinutes != null) 'latency_minutes': latencyMinutes,
+    if (vendorSleepScore != null) 'vendor_sleep_score': vendorSleepScore,
+    if (respiratoryRate != null) 'respiratory_rate': respiratoryRate,
+  };
 }
 
 /// Canonical recovery/physiology data extracted from vendor payloads
@@ -136,14 +130,13 @@ class CanonicalRecovery {
   });
 
   Map<String, dynamic> toJson() => {
-        if (hrvRmssdMs != null) 'hrv_rmssd_ms': hrvRmssdMs,
-        if (restingHrBpm != null) 'resting_hr_bpm': restingHrBpm,
-        if (vendorRecoveryScore != null)
-          'vendor_recovery_score': vendorRecoveryScore,
-        if (skinTempDeviationC != null)
-          'skin_temp_deviation_c': skinTempDeviationC,
-        if (spo2Percentage != null) 'spo2_percentage': spo2Percentage,
-      };
+    if (hrvRmssdMs != null) 'hrv_rmssd_ms': hrvRmssdMs,
+    if (restingHrBpm != null) 'resting_hr_bpm': restingHrBpm,
+    if (vendorRecoveryScore != null)
+      'vendor_recovery_score': vendorRecoveryScore,
+    if (skinTempDeviationC != null) 'skin_temp_deviation_c': skinTempDeviationC,
+    if (spo2Percentage != null) 'spo2_percentage': spo2Percentage,
+  };
 }
 
 /// Canonical activity/strain data extracted from vendor payloads
@@ -184,15 +177,15 @@ class CanonicalActivity {
   });
 
   Map<String, dynamic> toJson() => {
-        if (vendorStrainScore != null) 'vendor_strain_score': vendorStrainScore,
-        if (calories != null) 'calories': calories,
-        if (activeCalories != null) 'active_calories': activeCalories,
-        if (averageHrBpm != null) 'average_hr_bpm': averageHrBpm,
-        if (maxHrBpm != null) 'max_hr_bpm': maxHrBpm,
-        if (distanceMeters != null) 'distance_meters': distanceMeters,
-        if (steps != null) 'steps': steps,
-        if (activeMinutes != null) 'active_minutes': activeMinutes,
-      };
+    if (vendorStrainScore != null) 'vendor_strain_score': vendorStrainScore,
+    if (calories != null) 'calories': calories,
+    if (activeCalories != null) 'active_calories': activeCalories,
+    if (averageHrBpm != null) 'average_hr_bpm': averageHrBpm,
+    if (maxHrBpm != null) 'max_hr_bpm': maxHrBpm,
+    if (distanceMeters != null) 'distance_meters': distanceMeters,
+    if (steps != null) 'steps': steps,
+    if (activeMinutes != null) 'active_minutes': activeMinutes,
+  };
 }
 
 /// Canonical wear signals - vendor-agnostic representation of wearable data
@@ -237,16 +230,16 @@ class CanonicalWearSignals {
   });
 
   Map<String, dynamic> toJson() => {
-        'vendor': vendor.value,
-        'date': date,
-        'device_id': deviceId,
-        'timezone': timezone,
-        'observed_at': observedAt.toIso8601String(),
-        'sleep': sleep.toJson(),
-        'recovery': recovery.toJson(),
-        'activity': activity.toJson(),
-        'vendor_raw': vendorRaw,
-      };
+    'vendor': vendor.value,
+    'date': date,
+    'device_id': deviceId,
+    'timezone': timezone,
+    'observed_at': observedAt.toIso8601String(),
+    'sleep': sleep.toJson(),
+    'recovery': recovery.toJson(),
+    'activity': activity.toJson(),
+    'vendor_raw': vendorRaw,
+  };
 }
 
 /// Normalized signals with consistent units and scales
@@ -335,24 +328,23 @@ class Baselines {
   });
 
   Map<String, dynamic> toJson() => {
-        if (hrvBaselineMs != null) 'hrv_baseline_ms': hrvBaselineMs,
-        if (rhrBaselineBpm != null) 'rhr_baseline_bpm': rhrBaselineBpm,
-        if (sleepBaselineMinutes != null)
-          'sleep_baseline_minutes': sleepBaselineMinutes,
-        if (sleepEfficiencyBaseline != null)
-          'sleep_efficiency_baseline': sleepEfficiencyBaseline,
-        'baseline_days': baselineDays,
-      };
+    if (hrvBaselineMs != null) 'hrv_baseline_ms': hrvBaselineMs,
+    if (rhrBaselineBpm != null) 'rhr_baseline_bpm': rhrBaselineBpm,
+    if (sleepBaselineMinutes != null)
+      'sleep_baseline_minutes': sleepBaselineMinutes,
+    if (sleepEfficiencyBaseline != null)
+      'sleep_efficiency_baseline': sleepEfficiencyBaseline,
+    'baseline_days': baselineDays,
+  };
 
   factory Baselines.fromJson(Map<String, dynamic> json) => Baselines(
-        hrvBaselineMs: (json['hrv_baseline_ms'] as num?)?.toDouble(),
-        rhrBaselineBpm: (json['rhr_baseline_bpm'] as num?)?.toDouble(),
-        sleepBaselineMinutes:
-            (json['sleep_baseline_minutes'] as num?)?.toDouble(),
-        sleepEfficiencyBaseline:
-            (json['sleep_efficiency_baseline'] as num?)?.toDouble(),
-        baselineDays: json['baseline_days'] as int? ?? 0,
-      );
+    hrvBaselineMs: (json['hrv_baseline_ms'] as num?)?.toDouble(),
+    rhrBaselineBpm: (json['rhr_baseline_bpm'] as num?)?.toDouble(),
+    sleepBaselineMinutes: (json['sleep_baseline_minutes'] as num?)?.toDouble(),
+    sleepEfficiencyBaseline: (json['sleep_efficiency_baseline'] as num?)
+        ?.toDouble(),
+    baselineDays: json['baseline_days'] as int? ?? 0,
+  );
 }
 
 /// Contextual signals with baseline comparisons
@@ -394,16 +386,16 @@ class HsiProducer {
   });
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'version': version,
-        'instance_id': instanceId,
-      };
+    'name': name,
+    'version': version,
+    'instance_id': instanceId,
+  };
 
   factory HsiProducer.fromJson(Map<String, dynamic> json) => HsiProducer(
-        name: json['name'] as String,
-        version: json['version'] as String,
-        instanceId: json['instance_id'] as String,
-      );
+    name: json['name'] as String? ?? 'synheart-flux',
+    version: json['version'] as String? ?? '0.1.1',
+    instanceId: json['instance_id'] as String? ?? '',
+  );
 }
 
 /// HSI 1.0 time window
@@ -412,23 +404,19 @@ class HsiWindow {
   final String end;
   final String? label;
 
-  const HsiWindow({
-    required this.start,
-    required this.end,
-    this.label,
-  });
+  const HsiWindow({required this.start, required this.end, this.label});
 
   Map<String, dynamic> toJson() => {
-        'start': start,
-        'end': end,
-        if (label != null) 'label': label,
-      };
+    'start': start,
+    'end': end,
+    if (label != null) 'label': label,
+  };
 
   factory HsiWindow.fromJson(Map<String, dynamic> json) => HsiWindow(
-        start: json['start'] as String,
-        end: json['end'] as String,
-        label: json['label'] as String?,
-      );
+    start: json['start'] as String? ?? '',
+    end: json['end'] as String? ?? '',
+    label: json['label'] as String?,
+  );
 }
 
 /// HSI 1.0 source type
@@ -490,18 +478,18 @@ class HsiSource {
   });
 
   Map<String, dynamic> toJson() => {
-        'type': type.value,
-        'quality': quality,
-        'degraded': degraded,
-        if (notes != null) 'notes': notes,
-      };
+    'type': type.value,
+    'quality': quality,
+    'degraded': degraded,
+    if (notes != null) 'notes': notes,
+  };
 
   factory HsiSource.fromJson(Map<String, dynamic> json) => HsiSource(
-        type: HsiSourceType.fromString(json['type'] as String),
-        quality: (json['quality'] as num).toDouble(),
-        degraded: json['degraded'] as bool? ?? false,
-        notes: json['notes'] as String?,
-      );
+    type: HsiSourceType.fromString(json['type'] as String? ?? 'sensor'),
+    quality: (json['quality'] as num?)?.toDouble() ?? 0.0,
+    degraded: json['degraded'] as bool? ?? false,
+    notes: json['notes'] as String?,
+  );
 }
 
 /// HSI 1.0 axis direction
@@ -558,29 +546,32 @@ class HsiAxisReading {
   });
 
   Map<String, dynamic> toJson() => {
-        'axis': axis,
-        'score': score,
-        'confidence': confidence,
-        'window_id': windowId,
-        'direction': direction.value,
-        if (unit != null) 'unit': unit,
-        'evidence_source_ids': evidenceSourceIds,
-        if (notes != null) 'notes': notes,
-      };
+    'axis': axis,
+    'score': score,
+    'confidence': confidence,
+    'window_id': windowId,
+    'direction': direction.value,
+    if (unit != null) 'unit': unit,
+    'evidence_source_ids': evidenceSourceIds,
+    if (notes != null) 'notes': notes,
+  };
 
   factory HsiAxisReading.fromJson(Map<String, dynamic> json) => HsiAxisReading(
-        axis: json['axis'] as String,
-        score: (json['score'] as num).toDouble(),
-        confidence: (json['confidence'] as num).toDouble(),
-        windowId: json['window_id'] as String,
-        direction: HsiDirection.fromString(json['direction'] as String),
-        unit: json['unit'] as String?,
-        evidenceSourceIds: (json['evidence_source_ids'] as List<dynamic>?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [],
-        notes: json['notes'] as String?,
-      );
+    axis: json['axis'] as String? ?? '',
+    score: (json['score'] as num?)?.toDouble() ?? 0.0,
+    confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
+    windowId: json['window_id'] as String? ?? '',
+    direction: HsiDirection.fromString(
+      json['direction'] as String? ?? 'higher_is_more',
+    ),
+    unit: json['unit'] as String?,
+    evidenceSourceIds:
+        (json['evidence_source_ids'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [],
+    notes: json['notes'] as String?,
+  );
 }
 
 /// HSI 1.0 axes domain (e.g., behavior, affect, engagement)
@@ -590,15 +581,16 @@ class HsiAxesDomain {
   const HsiAxesDomain({this.readings = const []});
 
   Map<String, dynamic> toJson() => {
-        'readings': readings.map((r) => r.toJson()).toList(),
-      };
+    'readings': readings.map((r) => r.toJson()).toList(),
+  };
 
   factory HsiAxesDomain.fromJson(Map<String, dynamic> json) => HsiAxesDomain(
-        readings: (json['readings'] as List<dynamic>?)
-                ?.map((e) => HsiAxisReading.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-      );
+    readings:
+        (json['readings'] as List<dynamic>?)
+            ?.map((e) => HsiAxisReading.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
+  );
 }
 
 /// HSI 1.0 axes container
@@ -607,29 +599,25 @@ class HsiAxes {
   final HsiAxesDomain? engagement;
   final HsiAxesDomain? behavior;
 
-  const HsiAxes({
-    this.affect,
-    this.engagement,
-    this.behavior,
-  });
+  const HsiAxes({this.affect, this.engagement, this.behavior});
 
   Map<String, dynamic> toJson() => {
-        if (affect != null) 'affect': affect!.toJson(),
-        if (engagement != null) 'engagement': engagement!.toJson(),
-        if (behavior != null) 'behavior': behavior!.toJson(),
-      };
+    if (affect != null) 'affect': affect!.toJson(),
+    if (engagement != null) 'engagement': engagement!.toJson(),
+    if (behavior != null) 'behavior': behavior!.toJson(),
+  };
 
   factory HsiAxes.fromJson(Map<String, dynamic> json) => HsiAxes(
-        affect: json['affect'] != null
-            ? HsiAxesDomain.fromJson(json['affect'] as Map<String, dynamic>)
-            : null,
-        engagement: json['engagement'] != null
-            ? HsiAxesDomain.fromJson(json['engagement'] as Map<String, dynamic>)
-            : null,
-        behavior: json['behavior'] != null
-            ? HsiAxesDomain.fromJson(json['behavior'] as Map<String, dynamic>)
-            : null,
-      );
+    affect: json['affect'] != null
+        ? HsiAxesDomain.fromJson(json['affect'] as Map<String, dynamic>)
+        : null,
+    engagement: json['engagement'] != null
+        ? HsiAxesDomain.fromJson(json['engagement'] as Map<String, dynamic>)
+        : null,
+    behavior: json['behavior'] != null
+        ? HsiAxesDomain.fromJson(json['behavior'] as Map<String, dynamic>)
+        : null,
+  );
 }
 
 /// HSI 1.0 privacy declarations
@@ -649,23 +637,24 @@ class HsiPrivacy {
   });
 
   Map<String, dynamic> toJson() => {
-        'contains_pii': containsPii,
-        'raw_biosignals_allowed': rawBiosignalsAllowed,
-        'derived_metrics_allowed': derivedMetricsAllowed,
-        if (purposes.isNotEmpty) 'purposes': purposes,
-        if (notes != null) 'notes': notes,
-      };
+    'contains_pii': containsPii,
+    'raw_biosignals_allowed': rawBiosignalsAllowed,
+    'derived_metrics_allowed': derivedMetricsAllowed,
+    if (purposes.isNotEmpty) 'purposes': purposes,
+    if (notes != null) 'notes': notes,
+  };
 
   factory HsiPrivacy.fromJson(Map<String, dynamic> json) => HsiPrivacy(
-        containsPii: json['contains_pii'] as bool? ?? false,
-        rawBiosignalsAllowed: json['raw_biosignals_allowed'] as bool? ?? false,
-        derivedMetricsAllowed: json['derived_metrics_allowed'] as bool? ?? true,
-        purposes: (json['purposes'] as List<dynamic>?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [],
-        notes: json['notes'] as String?,
-      );
+    containsPii: json['contains_pii'] as bool? ?? false,
+    rawBiosignalsAllowed: json['raw_biosignals_allowed'] as bool? ?? false,
+    derivedMetricsAllowed: json['derived_metrics_allowed'] as bool? ?? true,
+    purposes:
+        (json['purposes'] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList() ??
+        [],
+    notes: json['notes'] as String?,
+  );
 }
 
 /// HSI sleep namespace signals
@@ -691,15 +680,15 @@ class HsiSleep {
   });
 
   Map<String, dynamic> toJson() => {
-        if (durationMinutes != null) 'duration_minutes': durationMinutes,
-        if (efficiency != null) 'efficiency': efficiency,
-        if (fragmentation != null) 'fragmentation': fragmentation,
-        if (deepRatio != null) 'deep_ratio': deepRatio,
-        if (remRatio != null) 'rem_ratio': remRatio,
-        if (latencyMinutes != null) 'latency_minutes': latencyMinutes,
-        if (score != null) 'score': score,
-        'vendor': vendor,
-      };
+    if (durationMinutes != null) 'duration_minutes': durationMinutes,
+    if (efficiency != null) 'efficiency': efficiency,
+    if (fragmentation != null) 'fragmentation': fragmentation,
+    if (deepRatio != null) 'deep_ratio': deepRatio,
+    if (remRatio != null) 'rem_ratio': remRatio,
+    if (latencyMinutes != null) 'latency_minutes': latencyMinutes,
+    if (score != null) 'score': score,
+    'vendor': vendor,
+  };
 }
 
 /// HSI physiology namespace signals
@@ -721,13 +710,13 @@ class HsiPhysiology {
   });
 
   Map<String, dynamic> toJson() => {
-        if (hrvRmssdMs != null) 'hrv_rmssd_ms': hrvRmssdMs,
-        if (restingHrBpm != null) 'resting_hr_bpm': restingHrBpm,
-        if (respiratoryRate != null) 'respiratory_rate': respiratoryRate,
-        if (spo2Percentage != null) 'spo2_percentage': spo2Percentage,
-        if (recoveryScore != null) 'recovery_score': recoveryScore,
-        'vendor': vendor,
-      };
+    if (hrvRmssdMs != null) 'hrv_rmssd_ms': hrvRmssdMs,
+    if (restingHrBpm != null) 'resting_hr_bpm': restingHrBpm,
+    if (respiratoryRate != null) 'respiratory_rate': respiratoryRate,
+    if (spo2Percentage != null) 'spo2_percentage': spo2Percentage,
+    if (recoveryScore != null) 'recovery_score': recoveryScore,
+    'vendor': vendor,
+  };
 }
 
 /// HSI activity namespace signals
@@ -753,15 +742,15 @@ class HsiActivity {
   });
 
   Map<String, dynamic> toJson() => {
-        if (strainScore != null) 'strain_score': strainScore,
-        if (normalizedLoad != null) 'normalized_load': normalizedLoad,
-        if (calories != null) 'calories': calories,
-        if (activeCalories != null) 'active_calories': activeCalories,
-        if (steps != null) 'steps': steps,
-        if (activeMinutes != null) 'active_minutes': activeMinutes,
-        if (distanceMeters != null) 'distance_meters': distanceMeters,
-        'vendor': vendor,
-      };
+    if (strainScore != null) 'strain_score': strainScore,
+    if (normalizedLoad != null) 'normalized_load': normalizedLoad,
+    if (calories != null) 'calories': calories,
+    if (activeCalories != null) 'active_calories': activeCalories,
+    if (steps != null) 'steps': steps,
+    if (activeMinutes != null) 'active_minutes': activeMinutes,
+    if (distanceMeters != null) 'distance_meters': distanceMeters,
+    'vendor': vendor,
+  };
 }
 
 /// HSI baseline namespace signals
@@ -787,16 +776,16 @@ class HsiBaseline {
   });
 
   Map<String, dynamic> toJson() => {
-        if (hrvMs != null) 'hrv_ms': hrvMs,
-        if (restingHrBpm != null) 'resting_hr_bpm': restingHrBpm,
-        if (sleepDurationMinutes != null)
-          'sleep_duration_minutes': sleepDurationMinutes,
-        if (sleepEfficiency != null) 'sleep_efficiency': sleepEfficiency,
-        if (hrvDeviationPct != null) 'hrv_deviation_pct': hrvDeviationPct,
-        if (rhrDeviationPct != null) 'rhr_deviation_pct': rhrDeviationPct,
-        if (sleepDeviationPct != null) 'sleep_deviation_pct': sleepDeviationPct,
-        'days_in_baseline': daysInBaseline,
-      };
+    if (hrvMs != null) 'hrv_ms': hrvMs,
+    if (restingHrBpm != null) 'resting_hr_bpm': restingHrBpm,
+    if (sleepDurationMinutes != null)
+      'sleep_duration_minutes': sleepDurationMinutes,
+    if (sleepEfficiency != null) 'sleep_efficiency': sleepEfficiency,
+    if (hrvDeviationPct != null) 'hrv_deviation_pct': hrvDeviationPct,
+    if (rhrDeviationPct != null) 'rhr_deviation_pct': rhrDeviationPct,
+    if (sleepDeviationPct != null) 'sleep_deviation_pct': sleepDeviationPct,
+    'days_in_baseline': daysInBaseline,
+  };
 }
 
 /// HSI daily window (legacy, kept for backward compatibility)
@@ -833,47 +822,140 @@ class HsiPayload {
   });
 
   Map<String, dynamic> toJson() => {
-        'hsi_version': hsiVersion,
-        'observed_at_utc': observedAtUtc,
-        'computed_at_utc': computedAtUtc,
-        'producer': producer.toJson(),
-        'window_ids': windowIds,
-        'windows': windows.map((k, v) => MapEntry(k, v.toJson())),
-        'source_ids': sourceIds,
-        'sources': sources.map((k, v) => MapEntry(k, v.toJson())),
-        'axes': axes.toJson(),
-        'privacy': privacy.toJson(),
-        if (meta.isNotEmpty) 'meta': meta,
-      };
+    'hsi_version': hsiVersion,
+    'observed_at_utc': observedAtUtc,
+    'computed_at_utc': computedAtUtc,
+    'producer': producer.toJson(),
+    'window_ids': windowIds,
+    'windows': windows.map((k, v) => MapEntry(k, v.toJson())),
+    'source_ids': sourceIds,
+    'sources': sources.map((k, v) => MapEntry(k, v.toJson())),
+    'axes': axes.toJson(),
+    'privacy': privacy.toJson(),
+    if (meta.isNotEmpty) 'meta': meta,
+  };
 
   factory HsiPayload.fromJson(Map<String, dynamic> json) {
-    final windowsJson = json['windows'] as Map<String, dynamic>? ?? {};
-    final sourcesJson = json['sources'] as Map<String, dynamic>? ?? {};
+    // Helper to safely convert to Map, handling List cases
+    Map<String, dynamic> safeMap(
+      dynamic value, [
+      Map<String, dynamic> defaultValue = const {},
+    ]) {
+      if (value == null) return defaultValue;
+      if (value is Map<String, dynamic>) return value;
+      if (value is Map) return Map<String, dynamic>.from(value);
+      if (value is List && value.isNotEmpty && value.first is Map) {
+        // If it's a list of maps, take the first one
+        final first = value.first;
+        if (first is Map<String, dynamic>) return first;
+        if (first is Map) return Map<String, dynamic>.from(first);
+      }
+      return defaultValue;
+    }
+
+    // Handle wearable format (has 'provenance' and 'windows' as array)
+    // vs behavioral format (has 'observed_at_utc' directly and 'windows' as map)
+    final hasProvenance = json.containsKey('provenance');
+    final observedAtUtc = hasProvenance
+        ? (safeMap(json['provenance'])['observed_at_utc'] as String? ?? '')
+        : (json['observed_at_utc'] as String? ?? '');
+    final computedAtUtc = hasProvenance
+        ? (safeMap(json['provenance'])['computed_at_utc'] as String? ?? '')
+        : (json['computed_at_utc'] as String? ?? '');
+
+    final sourcesJson = safeMap(json['sources']);
+    final producerJson = safeMap(json['producer']);
+    final axesJson = safeMap(json['axes']);
+    final privacyJson = safeMap(json['privacy']);
+    final metaJson = safeMap(json['meta']);
+
+    // Handle windows - can be array (wearable) or map (behavioral)
+    Map<String, HsiWindow> windowsMap = {};
+    List<String> windowIds = [];
+    Map<String, dynamic> wearableWindowsData =
+        {}; // Store full window data for wearable format
+
+    if (json['windows'] is List) {
+      // Wearable format: windows is an array of HsiDailyWindow objects
+      final windowsList = json['windows'] as List<dynamic>;
+      for (int i = 0; i < windowsList.length; i++) {
+        final windowObj = windowsList[i];
+        if (windowObj is Map<String, dynamic>) {
+          // Extract date to create window ID
+          final date = windowObj['date'] as String? ?? '';
+          final windowId = 'w_${date}_$i';
+          windowIds.add(windowId);
+
+          // Store the full window data (sleep, physiology, activity, baseline) in meta
+          wearableWindowsData[windowId] = {
+            'date': date,
+            'timezone': windowObj['timezone'] as String? ?? '',
+            'sleep': windowObj['sleep'],
+            'physiology': windowObj['physiology'],
+            'activity': windowObj['activity'],
+            'baseline': windowObj['baseline'],
+          };
+
+          // Create HsiWindow from the daily window structure
+          // For wearable format, we'll use date/timezone as start/end placeholder
+          // or extract from sleep/activity times if available
+          final sleepObj = windowObj['sleep'] as Map<String, dynamic>?;
+          final start =
+              sleepObj?['start_time'] as String? ??
+              windowObj['start'] as String? ??
+              (date.isNotEmpty ? '${date}T00:00:00Z' : '');
+          final end =
+              sleepObj?['end_time'] as String? ??
+              windowObj['end'] as String? ??
+              (date.isNotEmpty ? '${date}T23:59:59Z' : '');
+
+          windowsMap[windowId] = HsiWindow(
+            start: start,
+            end: end,
+            label: 'daily:$date',
+          );
+        }
+      }
+    } else {
+      // Behavioral format: windows is a map
+      final windowsJson = safeMap(json['windows']);
+      windowsMap = windowsJson.map(
+        (k, v) => MapEntry(k, HsiWindow.fromJson(safeMap(v))),
+      );
+      windowIds = windowsMap.keys.toList();
+    }
+
+    // If window_ids is provided, use it; otherwise use keys from windows map
+    if (json['window_ids'] is List) {
+      windowIds = (json['window_ids'] as List<dynamic>)
+          .map((e) => e.toString())
+          .toList();
+    }
+
+    // Merge wearable window data into meta if present
+    final mergedMeta = Map<String, dynamic>.from(metaJson);
+    if (wearableWindowsData.isNotEmpty) {
+      mergedMeta['wearable_windows'] = wearableWindowsData;
+    }
 
     return HsiPayload(
-      hsiVersion: json['hsi_version'] as String,
-      observedAtUtc: json['observed_at_utc'] as String,
-      computedAtUtc: json['computed_at_utc'] as String,
-      producer:
-          HsiProducer.fromJson(json['producer'] as Map<String, dynamic>),
-      windowIds: (json['window_ids'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      windows: windowsJson.map(
-        (k, v) => MapEntry(k, HsiWindow.fromJson(v as Map<String, dynamic>)),
-      ),
-      sourceIds: (json['source_ids'] as List<dynamic>?)
-              ?.map((e) => e as String)
+      hsiVersion: json['hsi_version'] as String? ?? '1.0',
+      observedAtUtc: observedAtUtc,
+      computedAtUtc: computedAtUtc,
+      producer: HsiProducer.fromJson(producerJson),
+      windowIds: windowIds,
+      windows: windowsMap,
+      sourceIds:
+          (json['source_ids'] as List<dynamic>?)
+              ?.map((e) => e.toString())
               .toList() ??
           [],
       sources: sourcesJson.map(
-        (k, v) => MapEntry(k, HsiSource.fromJson(v as Map<String, dynamic>)),
+        (k, v) => MapEntry(k, HsiSource.fromJson(safeMap(v))),
       ),
-      axes: HsiAxes.fromJson(json['axes'] as Map<String, dynamic>? ?? {}),
-      privacy:
-          HsiPrivacy.fromJson(json['privacy'] as Map<String, dynamic>? ?? {}),
-      meta: json['meta'] as Map<String, dynamic>? ?? {},
+      axes: HsiAxes.fromJson(axesJson),
+      privacy: HsiPrivacy.fromJson(privacyJson),
+      meta: mergedMeta,
     );
   }
 }
@@ -884,7 +966,9 @@ class HsiPayload {
 // =============================================================================
 
 /// @deprecated Use HsiAxisReading instead for HSI 1.0 output
-@Deprecated('Use HsiAxisReading for HSI 1.0 output. Kept for internal processing.')
+@Deprecated(
+  'Use HsiAxisReading for HSI 1.0 output. Kept for internal processing.',
+)
 class LegacyHsiDailyWindow {
   final String date;
   final String timezone;
@@ -903,11 +987,11 @@ class LegacyHsiDailyWindow {
   });
 
   Map<String, dynamic> toJson() => {
-        'date': date,
-        'timezone': timezone,
-        'sleep': sleep.toJson(),
-        'physiology': physiology.toJson(),
-        'activity': activity.toJson(),
-        'baseline': baseline.toJson(),
-      };
+    'date': date,
+    'timezone': timezone,
+    'sleep': sleep.toJson(),
+    'physiology': physiology.toJson(),
+    'activity': activity.toJson(),
+    'baseline': baseline.toJson(),
+  };
 }

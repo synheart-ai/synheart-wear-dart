@@ -252,14 +252,41 @@ Add to `ios/Runner/Info.plist`:
 
 ## 🧠 Flux (HSI compute) 
 
-This package includes **Flux**, a compute pipeline that converts vendor payloads (WHOOP/Garmin) into **HSI-style daily JSON payloads**.
+This package includes **Flux**, a compute pipeline that converts vendor payloads (WHOOP/Garmin) into **HSI 1.0 compliant human state signals**.
+
+**For pub.dev users:** Flux native binaries are automatically included - no setup required! Just enable Flux in your config and start using it.
+
+**What Flux does:**
+- Transforms raw vendor data (WHOOP/Garmin) into standardized HSI 1.0 format
+- Organizes data into daily windows with sleep, physiology, and activity metrics
+- Provides baseline calculations for personalized insights
+- Ensures data privacy with on-device processing
 
 ### Install (native Rust Flux binaries)
 
 Flux is implemented in **Rust** and called via Dart **FFI**. To activate Flux, your app must bundle the native library for your platform.
 
-- **If you install from pub.dev**: Flux native binaries are **already included** (nothing to do).
-- **If you’re developing this repo from source / CI needs to refresh binaries**: download the pinned Flux release artifacts into `vendor/flux/**` by running:
+#### For pub.dev Users (Most Developers)
+
+**✅ No setup required!** When you install `synheart_wear` from pub.dev, Flux native binaries are automatically included and bundled with your app. Just add the dependency and use Flux:
+
+```yaml
+dependencies:
+  synheart_wear: ^0.2.4
+```
+
+```dart
+final wear = SynheartWear(
+  config: SynheartWearConfig(enableFlux: true),
+);
+// Flux is ready to use!
+```
+
+#### For SDK Developers (Source Code)
+
+If you're developing the SDK itself or using it from source, you need to download Flux binaries:
+
+- Download the pinned Flux release artifacts into `vendor/flux/**` by running:
 
 ```bash
 bash tool/fetch_flux_binaries.sh
@@ -306,7 +333,77 @@ if (!isFluxAvailable) {
 }
 ```
 
-### Use (stateless)
+### Use (via SynheartWear - Recommended)
+
+The easiest way to use Flux is through `SynheartWear.readFluxSnapshot()`. This method handles fetching raw vendor data and converting it to HSI format:
+
+```dart
+import 'dart:convert';
+import 'package:synheart_wear/synheart_wear.dart';
+
+// Step 1: Fetch raw data from WHOOP or Garmin
+final whoopProvider = WhoopProvider(
+  appId: 'your-app-id',
+  userId: 'user-123',
+);
+final rawData = await whoopProvider.fetchRawDataForFlux(
+  start: DateTime.now().subtract(const Duration(days: 30)),
+  end: DateTime.now(),
+);
+final rawJson = jsonEncode(rawData);
+
+// Step 2: Process with Flux
+final wear = SynheartWear(
+  config: SynheartWearConfig(enableFlux: true),
+);
+final hsiSnapshot = await wear.readFluxSnapshot(
+  vendor: Vendor.whoop,
+  deviceId: 'whoop-device-123',
+  timezone: 'America/New_York',
+  rawVendorJson: rawJson,
+);
+
+// Step 3: Use HSI data
+print('HSI Version: ${hsiSnapshot.hsiVersion}');
+print('Windows: ${hsiSnapshot.windows.length}');
+print('Observed At: ${hsiSnapshot.observedAtUtc}');
+print('Computed At: ${hsiSnapshot.computedAtUtc}');
+
+// Access window data
+hsiSnapshot.windows.forEach((windowId, window) {
+  if (window.sleep != null) {
+    print('Sleep duration: ${window.sleep!.durationMinutes} min');
+  }
+  if (window.physiology != null) {
+    print('Resting HR: ${window.physiology!.restingHrBpm} bpm');
+  }
+  if (window.activity != null) {
+    print('Steps: ${window.activity!.steps}');
+  }
+});
+```
+
+**For Garmin:**
+```dart
+final garminProvider = GarminProvider(
+  appId: 'your-app-id',
+  userId: 'user-123',
+);
+final rawData = await garminProvider.fetchRawDataForFlux(
+  start: DateTime.now().subtract(const Duration(days: 30)),
+  end: DateTime.now(),
+);
+final rawJson = jsonEncode(rawData);
+
+final hsiSnapshot = await wear.readFluxSnapshot(
+  vendor: Vendor.garmin,
+  deviceId: 'garmin-device-456',
+  timezone: 'America/Los_Angeles',
+  rawVendorJson: rawJson,
+);
+```
+
+### Use (stateless - low-level API)
 
 ```dart
 import 'package:synheart_wear/flux.dart';
@@ -320,9 +417,9 @@ for (final hsiJson in hsiPayloads) {
 }
 ```
 
-### Use (stateful baselines)
+### Use (stateful baselines - low-level API)
 
-Use this when you need rolling baselines across multiple calls. Don’t forget to dispose.
+Use this when you need rolling baselines across multiple calls. Don't forget to dispose.
 
 ```dart
 import 'package:synheart_wear/flux.dart';
@@ -337,6 +434,37 @@ final savedBaselinesJson = processor.saveBaselines();
 
 processor.dispose();
 ```
+
+### Fetching Raw Data for Flux
+
+Both `WhoopProvider` and `GarminProvider` include `fetchRawDataForFlux()` methods that fetch and format vendor data for Flux processing:
+
+**WHOOP:**
+```dart
+final whoopProvider = WhoopProvider(appId: 'your-app-id', userId: 'user-123');
+final rawData = await whoopProvider.fetchRawDataForFlux(
+  start: DateTime.now().subtract(const Duration(days: 30)),
+  end: DateTime.now(),
+  limit: 50,
+);
+// Returns: { 'sleep': [...], 'recovery': [...], 'cycle': [...] }
+```
+
+**Garmin:**
+```dart
+final garminProvider = GarminProvider(appId: 'your-app-id', userId: 'user-123');
+final rawData = await garminProvider.fetchRawDataForFlux(
+  start: DateTime.now().subtract(const Duration(days: 30)),
+  end: DateTime.now(),
+);
+// Returns: { 'dailies': [...], 'sleep': [...] }
+```
+
+These methods automatically:
+- Fetch data from the appropriate vendor endpoints
+- Transform data to match Flux's expected format
+- Handle missing fields and data validation
+- Return data ready for Flux processing
 
 ## 📖 Additional Resources
 

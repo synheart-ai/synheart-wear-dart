@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,6 +32,13 @@ class GarminProvider {
   String? userId;
   final bool _baseUrlExplicitlyProvided;
 
+  // Subscription state
+  EventSubscriptionService? _subscriptionService;
+  StreamSubscription<WearServiceEvent>? _subscriptionStream;
+  bool _isSubscribed = false;
+  DateTime? _lastSubscriptionAttempt;
+  static const Duration _subscriptionRetryDelay = Duration(seconds: 2);
+
   GarminProvider({
     String? baseUrl,
     String? appId,
@@ -37,7 +46,7 @@ class GarminProvider {
     this.userId,
     bool loadFromStorage = true,
   }) : baseUrl = baseUrl ?? defaultBaseUrl,
-       appId = appId ?? 'app-123',
+       appId = appId ?? 'app_corporate-wellness_and_JOGayA',
        redirectUri = redirectUri ?? defaultRedirectUri,
        _baseUrlExplicitlyProvided = baseUrl != null {
     logDebug('🔧 GarminProvider initialized:');
@@ -431,35 +440,138 @@ class GarminProvider {
     }
   }
 
+  /// Ensure subscription is active before making data requests
+  /// This is required by the backend to process historical data requests
+  ///
+  /// Note: SSE connections can close normally (network issues, server restarts, etc.)
+  /// We ensure subscription is initiated, but don't require it to stay alive
+  Future<void> _ensureSubscription() async {
+    // If already subscribed and subscription is recent, skip
+    if (_isSubscribed && _lastSubscriptionAttempt != null) {
+      final timeSinceLastAttempt = DateTime.now().difference(
+        _lastSubscriptionAttempt!,
+      );
+      if (timeSinceLastAttempt < _subscriptionRetryDelay) {
+        logWarning('✅ [SUBSCRIPTION] Already subscribed (recent attempt)');
+        return;
+      }
+    }
+
+    if (userId == null) {
+      logWarning('⚠️ [SUBSCRIPTION] Cannot subscribe: userId is null');
+      return;
+    }
+
+    // Clean up previous subscription if it exists
+    await _cleanupSubscription();
+
+    try {
+      logWarning('📡 [SUBSCRIPTION] Ensuring subscription to Garmin events...');
+      _subscriptionService = EventSubscriptionService(
+        baseUrl: baseUrl,
+        appId: appId,
+      );
+
+      _subscriptionStream = _subscriptionService!
+          .subscribe(userId: userId, vendors: ['garmin'])
+          .listen(
+            (event) {
+              logWarning(
+                '📨 [SUBSCRIPTION] Received Garmin event: ${event.event}',
+              );
+            },
+            onError: (error) {
+              final errorMessage = error.toString();
+              // Connection closures are normal for SSE - don't treat as failure
+              if (errorMessage.contains('Connection closed') ||
+                  errorMessage.contains('Connection terminated')) {
+                debugPrint(
+                  '📡 [SUBSCRIPTION] SSE connection closed (normal behavior)',
+                );
+              } else {
+                logWarning('⚠️ [SUBSCRIPTION] Event stream error: $error');
+              }
+              // Don't reset _isSubscribed immediately - allow retry on next request
+            },
+            onDone: () {
+              debugPrint(
+                '📡 [SUBSCRIPTION] Event stream closed (normal for SSE)',
+              );
+              // Mark as unsubscribed but allow retry on next request
+              _isSubscribed = false;
+            },
+          );
+
+      _isSubscribed = true;
+      _lastSubscriptionAttempt = DateTime.now();
+      logWarning(
+        '✅ [SUBSCRIPTION] Successfully initiated subscription to Garmin events',
+      );
+    } catch (e, stackTrace) {
+      logError(
+        '❌ [SUBSCRIPTION] Failed to subscribe to Garmin events: $e',
+        e,
+        stackTrace,
+      );
+      _isSubscribed = false;
+      // Don't throw - allow request to proceed even if subscription fails
+      // Backend might still process the request
+    }
+  }
+
+  /// Clean up existing subscription resources
+  Future<void> _cleanupSubscription() async {
+    try {
+      await _subscriptionStream?.cancel();
+      _subscriptionService?.dispose();
+    } catch (e) {
+      logDebug('⚠️ [SUBSCRIPTION] Error during cleanup: $e');
+    } finally {
+      _subscriptionStream = null;
+      _subscriptionService = null;
+    }
+  }
+
   /// Fetch Garmin data - generic method for all summary types
+  /// Automatically ensures subscription is active before making the request
   Future<Map<String, dynamic>> _fetchData(
     String summaryType,
     String userId,
     DateTime? start,
     DateTime? end,
   ) async {
-    logDebug('📊 [DATA] Fetching Garmin $summaryType data');
-    logDebug('  userId: $userId');
-    logDebug('  start: $start');
-    logDebug('  end: $end');
+    // Ensure subscription is active before fetching data
+    await _ensureSubscription();
+
+    logWarning('📊 [DATA] Fetching Garmin $summaryType data');
+    logWarning('  userId: $userId');
+    logWarning('  start: $start');
+    logWarning('  end: $end');
 
     final params = {
       'app_id': appId,
-      if (start != null) 'start': start.toUtc().toIso8601String(),
-      if (end != null) 'end': end.toUtc().toIso8601String(),
+      if (start != null) 'start_time': start.toUtc().toIso8601String(),
+      if (end != null) 'end_time': end.toUtc().toIso8601String(),
     };
 
     final uri = Uri.parse(
       '$baseUrl/api/v1/garmin/data/$userId/$summaryType',
     ).replace(queryParameters: params);
 
-    logDebug('📡 [DATA] Request URI: $uri');
+    // Always print URI for debugging (even if debug logs are disabled)
+    debugPrint('📡 [Garmin] Request URI: $uri');
+    logWarning('📡 [DATA] Request URI: $uri');
     try {
       final res = await http.get(uri);
-      logDebug('📥 [DATA] Response status: ${res.statusCode}');
-      logDebug(
-        '📥 [DATA] Response body: ${res.body.substring(0, res.body.length > 500 ? 500 : res.body.length)}...',
-      );
+      logWarning('📥 [DATA] Response status: ${res.statusCode}');
+      if (res.statusCode == 200) {
+        final bodyPreview = res.body.length > 500
+            ? '${res.body.substring(0, 500)}...'
+            : res.body;
+        logWarning('📥 [DATA] Response body preview: $bodyPreview');
+      } else {
+        logWarning('📥 [DATA] Response body: ${res.body}');
+      }
 
       if (res.statusCode != 200) {
         logError(
@@ -467,9 +579,17 @@ class GarminProvider {
           Exception('Status ${res.statusCode}'),
           StackTrace.current,
         );
-        throw Exception(
-          'Failed to fetch Garmin $summaryType (${res.statusCode}): ${res.body}',
-        );
+
+        // Provide helpful error message for 404
+        String errorMessage =
+            'Failed to fetch Garmin $summaryType (${res.statusCode}): ${res.body}';
+        if (res.statusCode == 404) {
+          errorMessage +=
+              '\n\n💡 Tip: Garmin data may need to be synced first. '
+              'Try requesting a backfill for $summaryType before fetching data.';
+        }
+
+        throw Exception(errorMessage);
       }
 
       final data = jsonDecode(res.body);
@@ -477,7 +597,7 @@ class GarminProvider {
       // Validate data freshness
       _validateDataFreshness(data, 'Garmin $summaryType fetch');
 
-      logDebug('✅ [DATA] Successfully fetched Garmin $summaryType data');
+      logWarning('✅ [DATA] Successfully fetched Garmin $summaryType data');
       return data;
     } catch (e, stackTrace) {
       logError(
@@ -880,6 +1000,55 @@ class GarminProvider {
     return _convertToWearMetricsList(response, 'garmin', effectiveUserId);
   }
 
+  /// Fetch raw Garmin data for Flux processing
+  /// Combines dailies and sleeps data into the format expected by Flux
+  /// userId is optional, uses stored userId if not provided
+  Future<Map<String, dynamic>> fetchRawDataForFlux({
+    String? userId,
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+
+    // Fetch dailies and sleeps data
+    final dailies = await _fetchData('dailies', effectiveUserId, start, end);
+    final sleeps = await _fetchData('sleeps', effectiveUserId, start, end);
+
+    // Extract arrays from responses
+    // _fetchData always returns Map<String, dynamic> from jsonDecode
+    List<dynamic> dailiesArray = [];
+    if (dailies.containsKey('data') && dailies['data'] is List) {
+      dailiesArray = dailies['data'] as List;
+    } else if (dailies.containsKey('records') && dailies['records'] is List) {
+      dailiesArray = dailies['records'] as List;
+    } else if (dailies.containsKey('items') && dailies['items'] is List) {
+      dailiesArray = dailies['items'] as List;
+    } else if (dailies.containsKey('dailies') && dailies['dailies'] is List) {
+      dailiesArray = dailies['dailies'] as List;
+    }
+
+    List<dynamic> sleepsArray = [];
+    if (sleeps.containsKey('data') && sleeps['data'] is List) {
+      sleepsArray = sleeps['data'] as List;
+    } else if (sleeps.containsKey('records') && sleeps['records'] is List) {
+      sleepsArray = sleeps['records'] as List;
+    } else if (sleeps.containsKey('items') && sleeps['items'] is List) {
+      sleepsArray = sleeps['items'] as List;
+    } else if (sleeps.containsKey('sleep') && sleeps['sleep'] is List) {
+      sleepsArray = sleeps['sleep'] as List;
+    } else if (sleeps.containsKey('sleeps') && sleeps['sleeps'] is List) {
+      sleepsArray = sleeps['sleeps'] as List;
+    }
+
+    // Return in the format Flux expects: { "dailies": [...], "sleep": [...] }
+    return {'dailies': dailiesArray, 'sleep': sleepsArray};
+  }
+
   /// Fetch detailed stress values and body battery events
   /// userId is optional, uses stored userId if not provided
   /// Returns list of WearMetrics in unified format
@@ -1123,27 +1292,71 @@ class GarminProvider {
       );
     }
 
+    // Ensure subscription is active before requesting backfill
+    await _ensureSubscription();
+
     final uri = Uri.parse(
       '$baseUrl/api/v1/garmin/backfill/$effectiveUserId/$summaryType',
     );
-    print('Garmin backfill request URI: $uri');
-    print('Garmin backfill request URI: $uri');
-    print('Garmin backfill request URI: $uri');
-    print('Garmin backfill request URI: $uri');
+
+    // Use actual DateTime values without normalization to avoid duplicate detection
+    // Each request will have unique timestamps based on when it was made
+    final requestBody = {
+      'app_id': appId,
+      'start_time': start.toUtc().toIso8601String(),
+      'end_time': end.toUtc().toIso8601String(),
+    };
+
+    logWarning('📡 [BACKFILL] Request URI: $uri');
+    logWarning('📡 [BACKFILL] Request body: ${jsonEncode(requestBody)}');
 
     final res = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'app_id': appId,
-        'start': start.toUtc().toIso8601String(),
-        'end': end.toUtc().toIso8601String(),
-      }),
+      body: jsonEncode(requestBody),
     );
-    print(res.body);
+
+    logWarning('📥 [BACKFILL] Response status: ${res.statusCode}');
+    logWarning('📥 [BACKFILL] Response body: ${res.body}');
 
     if (res.statusCode != 202) {
-      throw Exception('Failed to request backfill: ${res.body}');
+      final errorBody = res.body;
+      String errorMessage = 'Failed to request backfill: $errorBody';
+
+      // Provide helpful guidance for common errors
+      if (res.statusCode == 400) {
+        if (errorBody.contains('connection not found') ||
+            errorBody.contains('failed to get tokens')) {
+          errorMessage =
+              'Backfill request failed: Connection tokens not yet available.\n\n'
+              '💡 This usually means:\n'
+              '  1. OAuth connection was just completed - tokens may still be syncing on the backend\n'
+              '  2. Try waiting a few seconds and retry the backfill request\n'
+              '  3. Or disconnect and reconnect Garmin to refresh tokens\n\n'
+              'Error details: $errorBody';
+          logWarning(
+            '⚠️ [BACKFILL] Connection tokens not available - this is a backend timing issue',
+          );
+        } else if (errorBody.contains('timestamp must be positive')) {
+          errorMessage =
+              'Backfill request failed: Invalid timestamp format.\n\n'
+              '💡 Ensure start and end are in RFC3339 format (e.g., "2025-01-20T18:30:00.000Z")\n\n'
+              'Error details: $errorBody';
+        } else if (errorBody.contains('date range') ||
+            errorBody.contains('90 days')) {
+          errorMessage =
+              'Backfill request failed: Date range exceeds limit.\n\n'
+              '💡 Maximum date range is 90 days. Please select a smaller range.\n\n'
+              'Error details: $errorBody';
+        }
+      } else if (res.statusCode == 404) {
+        errorMessage =
+            'Backfill request failed: Endpoint not found.\n\n'
+            '💡 Check that the summaryType is valid and the user is connected.\n\n'
+            'Error details: $errorBody';
+      }
+
+      throw Exception(errorMessage);
     }
 
     return jsonDecode(res.body);

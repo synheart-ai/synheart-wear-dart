@@ -254,8 +254,11 @@ class SynheartWear {
       );
     }
 
+    // Skip initialization when processing raw vendor JSON - Flux can process it directly
+    // without needing SDK data sources. Initialization is only needed for streaming/HRV features.
+    // Mark as initialized to prevent future initialization attempts
     if (!_initialized) {
-      await initialize();
+      _initialized = true;
     }
 
     // Lazy initialize the Flux processor
@@ -604,10 +607,22 @@ class SynheartWear {
 
   /// Decode JSON string to Map
   Map<String, dynamic> _decodeJson(String jsonStr) {
-    // Using dart:convert would require an import, so we use a simple approach
-    // In production, this would use json.decode
-    return Map<String, dynamic>.from(
-      (const JsonDecoder()).convert(jsonStr) as Map,
+    final decoded = jsonDecode(jsonStr);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    } else if (decoded is Map) {
+      return Map<String, dynamic>.from(decoded);
+    } else if (decoded is List && decoded.isNotEmpty) {
+      // If Flux accidentally returns an array, take the first element
+      final first = decoded.first;
+      if (first is Map<String, dynamic>) {
+        return first;
+      } else if (first is Map) {
+        return Map<String, dynamic>.from(first);
+      }
+    }
+    throw FormatException(
+      'Expected JSON object but got ${decoded.runtimeType}: $jsonStr',
     );
   }
 

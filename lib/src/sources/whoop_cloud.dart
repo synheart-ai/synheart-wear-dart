@@ -36,7 +36,7 @@ class WhoopProvider {
     this.userId,
     bool loadFromStorage = true,
   }) : baseUrl = baseUrl ?? defaultBaseUrl,
-       appId = appId ?? 'app-123',
+       appId = appId ?? 'app_corporate-wellness_and_JOGayA',
        redirectUri = redirectUri ?? defaultRedirectUri,
        _baseUrlExplicitlyProvided = baseUrl != null {
     logDebug('🔧 WhoopProvider initialized:');
@@ -521,6 +521,165 @@ class WhoopProvider {
       cursor,
     );
     return _convertToWearMetricsList(response, 'whoop', effectiveUserId);
+  }
+
+  /// Fetch raw WHOOP data in Flux-expected format (sleep, recovery, cycle)
+  /// Returns a map with 'sleep', 'recovery', and 'cycle' arrays
+  Future<Map<String, dynamic>> fetchRawDataForFlux({
+    String? userId,
+    DateTime? start,
+    DateTime? end,
+    int limit = 50,
+  }) async {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+
+    // Fetch all three data types
+    final sleep = await _fetch(
+      'sleep',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      null,
+    );
+    final recovery = await _fetch(
+      'recovery',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      null,
+    );
+    final cycles = await _fetch(
+      'cycles',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      null,
+    );
+
+    // Extract arrays from responses
+    // _fetch always returns Map<String, dynamic> from jsonDecode
+    List<dynamic> sleepArray = [];
+    if (sleep.containsKey('data') && sleep['data'] is List) {
+      sleepArray = sleep['data'] as List;
+    } else if (sleep.containsKey('records') && sleep['records'] is List) {
+      sleepArray = sleep['records'] as List;
+    } else if (sleep.containsKey('items') && sleep['items'] is List) {
+      sleepArray = sleep['items'] as List;
+    }
+
+    List<dynamic> recoveryArray = [];
+    if (recovery.containsKey('data') && recovery['data'] is List) {
+      recoveryArray = recovery['data'] as List;
+    } else if (recovery.containsKey('records') && recovery['records'] is List) {
+      recoveryArray = recovery['records'] as List;
+    } else if (recovery.containsKey('items') && recovery['items'] is List) {
+      recoveryArray = recovery['items'] as List;
+    }
+
+    List<dynamic> cycleArray = [];
+    if (cycles.containsKey('data') && cycles['data'] is List) {
+      cycleArray = cycles['data'] as List;
+    } else if (cycles.containsKey('records') && cycles['records'] is List) {
+      cycleArray = cycles['records'] as List;
+    } else if (cycles.containsKey('items') && cycles['items'] is List) {
+      cycleArray = cycles['items'] as List;
+    }
+
+    // Transform data to match Flux expectations:
+    // - Remove UUID string 'id' fields (Flux expects Option<i64> but WHOOP returns UUID strings)
+    // - Ensure stage_summary has all required fields, especially total_sleep_time_milli
+    sleepArray = sleepArray.map((item) {
+      if (item is Map<String, dynamic>) {
+        final transformed = Map<String, dynamic>.from(item);
+        transformed.remove('id'); // Remove UUID string id
+
+        // Fix stage_summary if it exists
+        if (transformed.containsKey('score') &&
+            transformed['score'] is Map<String, dynamic>) {
+          final score = transformed['score'] as Map<String, dynamic>;
+          if (score.containsKey('stage_summary') &&
+              score['stage_summary'] is Map<String, dynamic>) {
+            final stageSummary = score['stage_summary'] as Map<String, dynamic>;
+
+            // Calculate total_sleep_time_milli if missing
+            if (!stageSummary.containsKey('total_sleep_time_milli')) {
+              int totalSleep = 0;
+              if (stageSummary.containsKey('total_light_sleep_time_milli') &&
+                  stageSummary['total_light_sleep_time_milli'] is num) {
+                totalSleep +=
+                    (stageSummary['total_light_sleep_time_milli'] as num)
+                        .toInt();
+              }
+              if (stageSummary.containsKey(
+                    'total_slow_wave_sleep_time_milli',
+                  ) &&
+                  stageSummary['total_slow_wave_sleep_time_milli'] is num) {
+                totalSleep +=
+                    (stageSummary['total_slow_wave_sleep_time_milli'] as num)
+                        .toInt();
+              }
+              if (stageSummary.containsKey('total_rem_sleep_time_milli') &&
+                  stageSummary['total_rem_sleep_time_milli'] is num) {
+                totalSleep +=
+                    (stageSummary['total_rem_sleep_time_milli'] as num).toInt();
+              }
+
+              // If we couldn't calculate it, set to 0 (Flux requires the field to exist)
+              stageSummary['total_sleep_time_milli'] = totalSleep;
+            }
+
+            // Ensure all required fields exist with defaults if missing
+            if (!stageSummary.containsKey('total_in_bed_time_milli')) {
+              stageSummary['total_in_bed_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_awake_time_milli')) {
+              stageSummary['total_awake_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_light_sleep_time_milli')) {
+              stageSummary['total_light_sleep_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_slow_wave_sleep_time_milli')) {
+              stageSummary['total_slow_wave_sleep_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_rem_sleep_time_milli')) {
+              stageSummary['total_rem_sleep_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('disturbance_count')) {
+              stageSummary['disturbance_count'] = 0;
+            }
+          }
+        }
+
+        return transformed;
+      }
+      return item;
+    }).toList();
+
+    cycleArray = cycleArray.map((item) {
+      if (item is Map<String, dynamic>) {
+        final transformed = Map<String, dynamic>.from(item);
+        transformed.remove('id'); // Remove UUID string id
+        return transformed;
+      }
+      return item;
+    }).toList();
+
+    // Note: cycle_id in recovery might be an integer, so we keep it
+    // If it causes issues, we can remove it too
+
+    return {
+      'sleep': sleepArray,
+      'recovery': recoveryArray,
+      'cycle': cycleArray,
+    };
   }
 
   Future<Map<String, dynamic>> _fetch(

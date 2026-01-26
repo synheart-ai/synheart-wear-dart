@@ -5,10 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.4] - 2026-01-XX
+## [0.2.4] - 2026-01-26
 
 ### Added
 
+- **Flux Integration** - HSI 1.0 compliant data processing pipeline
+  - Added `readFluxSnapshot()` method to `SynheartWear` for converting vendor data to HSI 1.0 format
+  - Added `fetchRawDataForFlux()` to `WhoopProvider` for fetching and formatting WHOOP data for Flux
+  - Added `fetchRawDataForFlux()` to `GarminProvider` for fetching and formatting Garmin data for Flux
+  - Native Flux binaries automatically bundled for pub.dev users (no setup required)
+  - Support for WHOOP and Garmin data processing into HSI-compliant format
+  - Automatic data transformation (removes UUIDs, ensures required fields, calculates missing values)
+  - HSI output includes sleep, physiology, and activity data organized by daily windows
 - **Base URL Configuration** - Updated default base URL to `https://wear-service-dev.synheart.io` for both WHOOP and Garmin integrations
   - Automatic migration logic to update stored base URLs from old endpoints
   - Preserves explicitly provided base URLs while updating defaults

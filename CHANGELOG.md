@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.4] - 2026-01-26
+## [0.2.3] - 2026-01-26
 
 ### Added
 
@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **README Documentation** - Comprehensive improvements to initialization patterns and usage examples
+  - Added explicit permission control pattern (recommended approach) with step-by-step guidance
+  - Added alternative simplified initialization pattern for cases where custom reason isn't needed
+  - Documented initialization validation behavior (`NO_WEARABLE_DATA`, `STALE_DATA` error codes)
+  - Enhanced error handling examples with common error codes and proper exception handling
+  - Added stream subscription lifecycle documentation with proper cleanup examples
+  - Clarified platform-specific permission handling (Android vs iOS differences)
+  - Added new "Initialization Flow & Best Practices" section explaining both patterns
+  - Fixed inconsistencies between README examples and actual SDK implementation
+  - Added note about config default constructor including fitbit adapter
 - **WHOOP Authentication** - Fixed authentication response validation
   - Changed from checking string `status` field to boolean `success` field
   - Improved error message extraction from API responses
@@ -76,31 +86,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- Added detailed OAuth callback issue documentation for backend developers
-- Improved logging documentation for debugging OAuth flows
-
-## [0.2.3] - 2026-01-02
-
-### Changed
-
-- **README Documentation** - Comprehensive improvements to initialization patterns and usage examples
-  - Added explicit permission control pattern (recommended approach) with step-by-step guidance
-  - Added alternative simplified initialization pattern for cases where custom reason isn't needed
-  - Documented initialization validation behavior (`NO_WEARABLE_DATA`, `STALE_DATA` error codes)
-  - Enhanced error handling examples with common error codes and proper exception handling
-  - Added stream subscription lifecycle documentation with proper cleanup examples
-  - Clarified platform-specific permission handling (Android vs iOS differences)
-  - Added new "Initialization Flow & Best Practices" section explaining both patterns
-  - Fixed inconsistencies between README examples and actual SDK implementation
-  - Added note about config default constructor including fitbit adapter
-
-### Documentation
-
 - Improved code examples with proper error handling and permission checks
 - Added comprehensive error handling section with all common error codes
 - Enhanced platform-specific permission handling documentation
 - Clarified stream subscription behavior and lifecycle management
 - Better alignment between README examples and actual SDK behavior
+- Added detailed OAuth callback issue documentation for backend developers
+- Improved logging documentation for debugging OAuth flows
 
 ## [0.2.2] - 2025-01-XX
 
@@ -252,4 +244,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.1]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.1
 [0.2.2]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.2
 [0.2.3]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.3
-[0.2.4]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.4

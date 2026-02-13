@@ -20,6 +20,8 @@ dependencies:
   http: ^1.2.0
   url_launcher: ^6.3.0
   shared_preferences: ^2.2.2
+  grpc: ^3.2.0
+  protobuf: ^2.1.0
   # Platform bridges (add as needed)
   # health: ^9.0.0
   # google_fit: any

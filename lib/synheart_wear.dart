@@ -123,5 +123,9 @@ export 'src/sources/garmin_cloud.dart';
 export 'src/sources/event_subscription.dart';
 export 'src/adapters/android_health_helper.dart';
 
+// RAMEN (gRPC) and Wear Service (REST) per backend integration guide
+export 'src/ramen/ramen_client.dart';
+export 'src/wear/wear_service_client.dart';
+
 // Flux - HSI-compliant human state signal processing
 export 'src/flux/flux.dart';

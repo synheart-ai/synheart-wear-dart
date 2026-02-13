@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package ramen;
+
+option java_package = "ai.synheart.ramen";
+option java_multiple_files = true;
+
+// Client -> Server messages (bidirectional stream)
+message SubscribeRequest {
+  int64 last_seq = 1;   // last_acknowledged_seq from local storage; 0 if first time
+  string device_id = 2; // unique hardware ID (IDFV on iOS, Android ID)
+  string user_id = 3;   // user identifier (in addition to X-app-id and X-api-key headers)
+}
+
+message Ack {
+  int64 seq = 1;        // event.seq from EventEnvelope
+}
+
+message Heartbeat {
+  int64 timestamp = 1; // client time (ms)
+}
+
+message ClientMessage {
+  oneof message {
+    SubscribeRequest subscribe = 1;
+    Ack ack = 2;
+    Heartbeat heartbeat = 3;
+  }
+}
+
+// Server -> Client messages
+message EventEnvelope {
+  string event_id = 1;
+  int64 seq = 2;
+  string payload = 3;  // JSON
+}
+
+message HeartbeatAck {
+  int64 rtt_ms = 1;
+}
+
+message ServerMessage {
+  oneof message {
+    EventEnvelope event = 1;
+    HeartbeatAck heartbeat_ack = 2;
+  }
+}
+
+service RamenService {
+  rpc subscribe(stream ClientMessage) returns (stream ServerMessage);
+}

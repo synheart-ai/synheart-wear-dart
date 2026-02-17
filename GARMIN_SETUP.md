@@ -171,51 +171,61 @@ For Flutter plugin integration:
 
 ---
 
+## Building with Garmin RTS Support
+
+The real-time streaming (RTS) code lives in a private companion repo and is linked at build time via `make`:
+
+```bash
+# Auto-detect companion access and build accordingly
+make build
+
+# Or explicitly:
+make build-with-garmin     # requires companion repo access
+make build-without-garmin  # stub-only (scanning/pairing throw UnsupportedError)
+make check-garmin          # verify you have access
+make clean-garmin          # remove .garmin/ and symlinks
+```
+
+Without the companion, `GarminHealth` methods like `startScanning()`, `pairDevice()`, and `startStreaming()` throw `UnsupportedError`. Cloud-based Garmin data via `GarminProvider` (OAuth + webhooks) works regardless.
+
+---
+
 ## Dart Usage
 
-Once the SDK is configured, initialize it with your license key:
+Once the native SDK is configured and built with companion support, use `GarminHealth`:
 
 ```dart
 import 'package:synheart_wear/synheart_wear.dart';
 
-// Create the Garmin adapter
-final garminAdapter = GarminSdkAdapter(licenseKey: 'YOUR_LICENSE_KEY');
+// Create and initialize GarminHealth
+final garmin = GarminHealth(licenseKey: 'YOUR_LICENSE_KEY');
+await garmin.initialize();
 
-// Initialize the SDK
-await garminAdapter.initialize();
-
-// Check if SDK is available
-final isAvailable = await garminAdapter.isAvailable();
-if (!isAvailable) {
-  print('Garmin SDK not available - SDK may not be linked');
-  return;
-}
-
-// Get the device manager
-final deviceManager = garminAdapter.deviceManager;
+// Wire into SynheartWear
+final synheart = SynheartWear(
+  config: SynheartWearConfig.withAdapters({DeviceAdapter.garmin}),
+  garminHealth: garmin,
+);
 
 // Scan for devices
-await deviceManager.startScanning();
-
-// Listen for discovered devices
-deviceManager.scannedDevicesStream.listen((devices) {
+await garmin.startScanning();
+garmin.scannedDevicesStream.listen((devices) {
   for (final device in devices) {
     print('Found: ${device.name} (${device.identifier})');
   }
 });
 
 // Pair a device
-final pairedDevice = await deviceManager.pairDevice(scannedDevice);
+final paired = await garmin.pairDevice(scannedDevice);
 
 // Start real-time streaming
-await deviceManager.startStreaming();
-
-// Listen to real-time data
-garminAdapter.realTimeStream.listen((data) {
-  print('Heart Rate: ${data.heartRate}');
-  print('Stress: ${data.stress}');
-  print('HRV: ${data.hrv}');
+await garmin.startStreaming(device: paired);
+garmin.realTimeStream.listen((metrics) {
+  print('Heart Rate: ${metrics.getMetric(MetricType.hr)}');
 });
+
+// Clean up
+synheart.dispose();
 ```
 
 ---

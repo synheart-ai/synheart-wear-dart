@@ -24,7 +24,7 @@ class HealthAdapter {
   }
 
   /// Map Synheart permission types to Health package types
-  static List<HealthDataType> mapPermissions(Set<PermissionType> permissions) {
+  static List<HealthDataType> _mapPermissions(Set<PermissionType> permissions) {
     final healthTypes = <HealthDataType>[];
 
     for (final permission in permissions) {
@@ -85,34 +85,25 @@ class HealthAdapter {
   }
 
   /// Request permissions using health package (v13.2.1 API)
-  /// Optionally specify READ or READ_WRITE access for each type
+  /// Always requests READ_WRITE access for all types
   static Future<bool> requestPermissions(
-    Set<PermissionType> permissions, {
-    List<HealthDataAccess>? accessLevels,
-  }) async {
-    final healthTypes = mapPermissions(permissions);
+    Set<PermissionType> permissions,
+  ) async {
+    final healthTypes = _mapPermissions(permissions);
     if (healthTypes.isEmpty) return false;
 
     try {
       await _ensureConfigured();
 
-      // If access levels are provided, use them; otherwise default to READ_WRITE
-      if (accessLevels != null && accessLevels.length == healthTypes.length) {
-        return await _health.requestAuthorization(
-          healthTypes,
-          permissions: accessLevels,
-        );
-      } else {
-        // Default to READ_WRITE for all types
-        final defaultPermissions = List<HealthDataAccess>.filled(
-          healthTypes.length,
-          HealthDataAccess.READ_WRITE,
-        );
-        return await _health.requestAuthorization(
-          healthTypes,
-          permissions: defaultPermissions,
-        );
-      }
+      // Default to READ_WRITE for all types
+      final defaultPermissions = List<HealthDataAccess>.filled(
+        healthTypes.length,
+        HealthDataAccess.READ_WRITE,
+      );
+      return await _health.requestAuthorization(
+        healthTypes,
+        permissions: defaultPermissions,
+      );
     } catch (e) {
       logError('Health permission request error', e);
       return false;
@@ -132,42 +123,34 @@ class HealthAdapter {
     }
   }
 
-  /// Read health data for specific permissions (v13.2.1 API)
-  static Future<List<HealthDataPoint>> readHealthData(
+  /// Read health data and convert to WearMetrics in one step
+  static Future<WearMetrics?> readMetrics(
     Set<PermissionType> permissions, {
     DateTime? startTime,
     DateTime? endTime,
+    String? deviceId,
+    String? source,
   }) async {
-    final healthTypes = mapPermissions(permissions);
-    if (healthTypes.isEmpty) return [];
+    final healthTypes = _mapPermissions(permissions);
+    if (healthTypes.isEmpty) return null;
 
     final start =
         startTime ?? DateTime.now().subtract(const Duration(seconds: 2));
     final end = endTime ?? DateTime.now();
 
+    List<HealthDataPoint> dataPoints;
     try {
       await _ensureConfigured();
-      final data = await _health.getHealthDataFromTypes(
+      dataPoints = await _health.getHealthDataFromTypes(
         startTime: start,
         endTime: end,
         types: healthTypes,
       );
-
-      return data;
     } catch (e) {
       logError('Health data read error', e);
-      // Re-throw to allow callers to handle specific errors
-      // Return empty list for graceful degradation
-      return [];
+      return null;
     }
-  }
 
-  /// Convert HealthDataPoint to WearMetrics format
-  static WearMetrics? convertToWearMetrics(
-    List<HealthDataPoint> dataPoints, {
-    String? deviceId,
-    String? source,
-  }) {
     if (dataPoints.isEmpty) return null;
 
     final metrics = <String, num?>{};
@@ -355,7 +338,7 @@ class HealthAdapter {
       // Create a map of permission to health type for accurate checking
       final permissionToHealthType = <PermissionType, HealthDataType>{};
       for (final permission in permissions) {
-        final healthTypes = mapPermissions({permission});
+        final healthTypes = _mapPermissions({permission});
         if (healthTypes.isNotEmpty) {
           permissionToHealthType[permission] = healthTypes.first;
         }

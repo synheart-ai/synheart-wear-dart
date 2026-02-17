@@ -7,7 +7,18 @@ on:
 
 jobs:
   publish:
+    name: Publish Package
+    runs-on: ubuntu-latest
     permissions:
-      id-token: write # Required for authentication using OIDC
+      id-token: write
       contents: read
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.0"
+          channel: "stable"
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: dart pub publish --force

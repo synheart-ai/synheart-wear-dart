@@ -8,47 +8,28 @@
 /// ```dart
 /// import 'package:synheart_wear/synheart_wear.dart';
 ///
-/// // Create adapter with license key
-/// final garmin = GarminAdapter(licenseKey: 'your-license-key');
-///
-/// // Initialize
+/// final garmin = GarminHealth(licenseKey: 'your-license-key');
 /// await garmin.initialize();
 ///
 /// // Scan for devices
-/// garmin.deviceManager.scannedDevicesStream.listen((devices) {
+/// garmin.scannedDevicesStream.listen((devices) {
 ///   print('Found ${devices.length} devices');
 /// });
-/// await garmin.deviceManager.startScanning();
+/// await garmin.startScanning();
 ///
 /// // Pair with device
-/// final scannedDevice = ...; // from scannedDevicesStream
-/// final pairedDevice = await garmin.deviceManager.pairDevice(scannedDevice);
+/// final device = await garmin.pairDevice(scannedDevice);
 ///
-/// // Read data
-/// final metrics = await garmin.readSnapshot();
+/// // Read unified metrics
+/// final metrics = await garmin.readMetrics();
 /// print('Heart Rate: ${metrics?.getMetric(MetricType.hr)}');
 ///
-/// // Real-time streaming
-/// garmin.realTimeStream.listen((data) {
-///   print('HR: ${data.heartRate}, Stress: ${data.stress}');
+/// // Real-time streaming (returns WearMetrics)
+/// garmin.realTimeStream.listen((metrics) {
+///   print('HR: ${metrics.getMetric(MetricType.hr)}');
 /// });
 /// await garmin.startStreaming();
 /// ```
-///
-/// ## Features
-///
-/// - Device scanning and pairing
-/// - Connection state monitoring
-/// - Real-time data streaming (HR, HRV, stress, steps, SpO2)
-/// - Logged data access (heart rate, stress, respiration)
-/// - Wellness data (epochs, daily summaries)
-/// - Sleep session data
-/// - Activity/workout summaries
-/// - WiFi sync configuration
 library garmin;
 
-// Adapter
-export 'garmin_sdk_adapter.dart';
-export 'garmin_device_manager.dart';
-export 'garmin_platform_channel.dart';
-export 'garmin_errors.dart';
+export 'garmin_health.dart';

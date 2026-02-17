@@ -33,6 +33,10 @@ class SynheartWearConfig {
   /// Whether to encrypt cached data using AES-256
   final bool enableEncryption;
 
+  /// Whether to enable Flux HSI signal processing
+  /// When enabled, readFluxSnapshot() and streamFluxSnapshots() are available
+  final bool enableFlux;
+
   /// Adapter-specific configuration map
   final Map<String, Object?> adapterConfig;
 
@@ -48,6 +52,7 @@ class SynheartWearConfig {
     this.hrvWindowSize = const Duration(seconds: 5),
     this.enableLocalCaching = true,
     this.enableEncryption = true,
+    this.enableFlux = false,
     this.encryptionKeyPath,
     this.adapterConfig = const {},
   });
@@ -62,6 +67,7 @@ class SynheartWearConfig {
         enabledAdapters: const {DeviceAdapter.appleHealthKit},
         enableLocalCaching: false,
         enableEncryption: false,
+        enableFlux: false,
       );
 
   /// Create config for production
@@ -76,6 +82,7 @@ class SynheartWearConfig {
         },
         enableLocalCaching: true,
         enableEncryption: true,
+        enableFlux: true,
       );
 
   /// Check if a specific adapter is enabled
@@ -96,6 +103,7 @@ class SynheartWearConfig {
     Duration? hrvWindowSize,
     bool? enableLocalCaching,
     bool? enableEncryption,
+    bool? enableFlux,
     Map<String, Object?>? adapterConfig,
   }) {
     return SynheartWearConfig(
@@ -104,6 +112,7 @@ class SynheartWearConfig {
       hrvWindowSize: hrvWindowSize ?? this.hrvWindowSize,
       enableLocalCaching: enableLocalCaching ?? this.enableLocalCaching,
       enableEncryption: enableEncryption ?? this.enableEncryption,
+      enableFlux: enableFlux ?? this.enableFlux,
       adapterConfig: adapterConfig ?? this.adapterConfig,
     );
   }

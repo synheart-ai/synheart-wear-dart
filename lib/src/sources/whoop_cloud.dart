@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/logger.dart';
 import '../core/models.dart';
+import 'event_subscription.dart';
 
 /// Provider for Whoop cloud API integration
 ///
@@ -18,14 +18,16 @@ class WhoopProvider {
   static const String _redirectUriKey = 'sdk_redirect_uri';
 
   // Default values
+  // static const String defaultBaseUrl = 'https://wear-service-dev.synheart.io';
   static const String defaultBaseUrl =
-      'https://synheart-wear-service-leatest.onrender.com';
+      'https://wear-service-synheart.onrender.com';
   static const String defaultRedirectUri = 'synheart://oauth/callback';
 
   String baseUrl;
   String? redirectUri;
   String appId; // REQUIRED
   String? userId;
+  final bool _baseUrlExplicitlyProvided;
 
   WhoopProvider({
     String? baseUrl,
@@ -34,16 +36,28 @@ class WhoopProvider {
     this.userId,
     bool loadFromStorage = true,
   }) : baseUrl = baseUrl ?? defaultBaseUrl,
-       appId = appId ?? 'app-123',
-       redirectUri = redirectUri ?? defaultRedirectUri {
+       appId = appId ?? 'app_corporate-wellness_and_JOGayA',
+       redirectUri = redirectUri ?? defaultRedirectUri,
+       _baseUrlExplicitlyProvided = baseUrl != null {
+    logDebug('🔧 WhoopProvider initialized:');
+    logDebug('  baseUrl: $baseUrl');
+    logDebug('  appId: $appId');
+    logDebug('  redirectUri: $redirectUri');
+    logDebug('  userId: $userId');
+    logDebug('  loadFromStorage: $loadFromStorage');
+    logDebug('  baseUrl explicitly provided: $_baseUrlExplicitlyProvided');
     if (loadFromStorage) {
       _loadFromStorage();
     }
+    logDebug(
+      '✅ WhoopProvider ready - final baseUrl: ${this.baseUrl}, appId: ${this.appId}',
+    );
   }
 
   /// Load configuration and userId from local storage
   Future<void> _loadFromStorage() async {
     try {
+      logDebug('💾 [STORAGE] Loading configuration from storage...');
       final prefs = await SharedPreferences.getInstance();
 
       // Load configuration
@@ -51,14 +65,75 @@ class WhoopProvider {
       final savedAppId = prefs.getString(_appIdKey);
       final savedRedirectUri = prefs.getString(_redirectUriKey);
 
-      if (savedBaseUrl != null) baseUrl = savedBaseUrl;
-      if (savedAppId != null) appId = savedAppId;
-      if (savedRedirectUri != null) redirectUri = savedRedirectUri;
+      logDebug('💾 [STORAGE] Loaded from storage:');
+      logDebug('  savedBaseUrl: $savedBaseUrl');
+      logDebug('  savedAppId: $savedAppId');
+      logDebug('  savedRedirectUri: $savedRedirectUri');
+
+      if (savedBaseUrl != null) {
+        // If baseUrl was explicitly provided, don't override it, but still migrate storage
+        if (_baseUrlExplicitlyProvided) {
+          // Migrate storage to new baseUrl if it's the old one
+          if (savedBaseUrl.contains(
+                'synheart-wear-service-leatest.onrender.com',
+              ) ||
+              savedBaseUrl != defaultBaseUrl) {
+            logWarning(
+              '🔄 [STORAGE] Migrating stored baseUrl (keeping explicit baseUrl)',
+            );
+            logWarning('  Stored (old): $savedBaseUrl');
+            logWarning('  Using (explicit): $baseUrl');
+            logWarning('  New default: $defaultBaseUrl');
+            // Save the new baseUrl to storage for future use
+            await prefs.setString(_baseUrlKey, defaultBaseUrl);
+            logWarning('  ✅ Migrated stored baseUrl');
+          }
+          logDebug('  ✅ Keeping explicitly provided baseUrl: $baseUrl');
+        } else {
+          // Migrate from old baseUrl to new one
+          if (savedBaseUrl.contains(
+                'synheart-wear-service-leatest.onrender.com',
+              ) ||
+              savedBaseUrl != defaultBaseUrl) {
+            logWarning(
+              '🔄 [STORAGE] Migrating baseUrl from old value to new default',
+            );
+            logWarning('  Old: $savedBaseUrl');
+            logWarning('  New: $defaultBaseUrl');
+            // Update to new baseUrl
+            baseUrl = defaultBaseUrl;
+            // Save the new baseUrl to storage
+            await prefs.setString(_baseUrlKey, defaultBaseUrl);
+            logWarning('  ✅ Migrated and saved new baseUrl');
+          } else {
+            baseUrl = savedBaseUrl;
+            logDebug('  ✅ Using saved baseUrl: $baseUrl');
+          }
+        }
+      }
+      if (savedAppId != null) {
+        appId = savedAppId;
+        logDebug('  ✅ Using saved appId: $appId');
+      }
+      if (savedRedirectUri != null) {
+        redirectUri = savedRedirectUri;
+        logDebug('  ✅ Using saved redirectUri: $redirectUri');
+      }
 
       // Load userId
       final savedUserId = prefs.getString(_userIdKey);
-      if (savedUserId != null) userId = savedUserId;
-    } catch (e) {
+      logDebug('  savedUserId: $savedUserId');
+      if (savedUserId != null) {
+        userId = savedUserId;
+        logDebug('  ✅ Using saved userId: $userId');
+      }
+      logDebug('✅ [STORAGE] Configuration loaded successfully');
+    } catch (e, stackTrace) {
+      logError(
+        '⚠️ [STORAGE] Failed to load from storage, using defaults',
+        e,
+        stackTrace,
+      );
       // Silently fail - use provided/default values
     }
   }
@@ -147,118 +222,200 @@ class WhoopProvider {
     await _loadFromStorage();
   }
 
-  /// Generate a random state string for OAuth
-  String _generateState([int length = 8]) {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final rand = Random.secure();
-    return List.generate(
-      length,
-      (_) => chars[rand.nextInt(chars.length)],
-    ).join();
+  // 1. Get authorization URL using new unified "Managed" OAuth endpoint
+  /// Initiates OAuth connection using POST /api/v1/auth/connect/whoop
+  /// Returns the authorization URL and state from backend
+  Future<Map<String, String>> initiateOAuthConnection() async {
+    logWarning('🔐 [AUTH] Starting initiateOAuthConnection (WHOOP)');
+    logDebug('  baseUrl: $baseUrl');
+    logDebug('  appId: $appId');
+    logDebug('  userId: $userId');
+
+    final serviceUrl = Uri.parse('$baseUrl/api/v1/auth/connect/whoop');
+
+    final requestBody = {
+      'app_id': appId,
+      if (userId != null) 'user_id': userId!,
+    };
+
+    logWarning('📡 [AUTH] POST to: $serviceUrl');
+    logDebug('📤 [AUTH] Request body: $requestBody');
+
+    try {
+      final response = await http.post(
+        serviceUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      );
+
+      logWarning('📥 [AUTH] Response status: ${response.statusCode}');
+      logDebug('📥 [AUTH] Response headers: ${response.headers}');
+      logWarning('📥 [AUTH] Response body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        logError(
+          '❌ [AUTH] Failed to initiate WHOOP OAuth connection',
+          Exception('Status ${response.statusCode}'),
+          StackTrace.current,
+        );
+        throw Exception(
+          'Failed to initiate WHOOP OAuth connection (${response.statusCode}): ${response.body}',
+        );
+      }
+
+      final json = jsonDecode(response.body);
+      logDebug('📋 [AUTH] Parsed JSON response: $json');
+
+      final String? authorizationUrl = json['authorization_url'] as String?;
+      final String? state = json['state'] as String?;
+
+      if (authorizationUrl == null || authorizationUrl.isEmpty) {
+        logError(
+          '❌ [AUTH] authorization_url is missing in response',
+          Exception('Empty authorization_url'),
+          StackTrace.current,
+        );
+        throw Exception('authorization_url is missing in response');
+      }
+
+      if (state == null || state.isEmpty) {
+        logError(
+          '❌ [AUTH] state is missing in response',
+          Exception('Empty state'),
+          StackTrace.current,
+        );
+        throw Exception('state is missing in response');
+      }
+
+      logWarning(
+        '✅ [AUTH] Successfully obtained WHOOP authorization URL and state',
+      );
+      return {'authorization_url': authorizationUrl, 'state': state};
+    } catch (e, stackTrace) {
+      logError('❌ [AUTH] Error in initiateOAuthConnection: $e', e, stackTrace);
+      rethrow;
+    }
   }
 
-  // 1. Get authorization URL
-  // REPLACE the old getAuthorizationUrl with this one
-  Future<String> getRealWhoopLoginUrl(String state) async {
-    final serviceUrl = Uri.parse('$baseUrl/v1/whoop/oauth/authorize').replace(
-      queryParameters: {
-        'app_id': appId,
-        'redirect_uri': redirectUri,
-        'state': state,
-      },
-    );
-
-    final response = await http.get(serviceUrl);
-    logDebug('WHOOP login response: ${response.body}');
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to get WHOOP login URL: ${response.body}');
-    }
-
-    final json = jsonDecode(response.body);
-    final String whoopUrl = json['authorization_url'];
-
-    if (whoopUrl.isEmpty) {
-      throw Exception('authorization_url is missing in response');
-    }
-
-    return whoopUrl; // This is the REAL https://api.prod.whoop.com/... URL
-  }
-
-  /// Start OAuth flow: generate state, get URL, and launch browser
-  /// Returns the generated state string for tracking the OAuth callback
+  /// Start OAuth flow: initiate connection, get URL, and launch browser
+  /// Returns the state string from backend for tracking the OAuth callback
   Future<String> startOAuthFlow() async {
-    final state = _generateState();
-    final realWhoopUrl = await getRealWhoopLoginUrl(state);
+    logWarning('🚀 [AUTH] Starting OAuth flow (WHOOP)');
 
-    final launched = await launchUrl(
-      Uri.parse(realWhoopUrl),
-      mode: LaunchMode.externalApplication,
-    );
+    try {
+      final result = await initiateOAuthConnection();
+      final authorizationUrl = result['authorization_url']!;
+      final state = result['state']!;
 
-    if (!launched) {
-      throw Exception('Cannot open browser');
+      logWarning(
+        '🌐 [AUTH] Obtained WHOOP URL, attempting to launch browser...',
+      );
+      logWarning('  URL: $authorizationUrl');
+      logWarning(
+        '  State: ${state.substring(0, state.length > 30 ? 30 : state.length)}...',
+      );
+
+      final launched = await launchUrl(
+        Uri.parse(authorizationUrl),
+        mode: LaunchMode.externalApplication,
+      );
+
+      logWarning('📱 [AUTH] Browser launch result: $launched');
+
+      if (!launched) {
+        logError(
+          '❌ [AUTH] Cannot open browser',
+          Exception('Browser launch failed'),
+          StackTrace.current,
+        );
+        throw Exception('Cannot open browser');
+      }
+
+      logWarning(
+        '✅ [AUTH] OAuth flow started successfully, state: ${state.substring(0, 30)}...',
+      );
+      return state;
+    } catch (e, stackTrace) {
+      logError('❌ [AUTH] Error in startOAuthFlow: $e', e, stackTrace);
+      rethrow;
     }
-
-    return state;
   }
 
   /// Connect method (matches documentation API)
   /// Starts OAuth flow and returns state
   Future<String> connect([dynamic context]) async {
-    return await startOAuthFlow();
+    logDebug('🔌 [AUTH] connect() called');
+    try {
+      final state = await startOAuthFlow();
+      logDebug('✅ [AUTH] connect() completed, state: $state');
+      return state;
+    } catch (e, stackTrace) {
+      logError('❌ [AUTH] Error in connect(): $e', e, stackTrace);
+      rethrow;
+    }
   }
 
-  // 2. Exchange code – CORRECT ENDPOINT
-  /// Connect with authorization code (matches documentation signature)
-  Future<String> connectWithCode(
-    String code,
-    String state,
-    String redirectUri,
-  ) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/v1/whoop/oauth/callback'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        "code": code,
-        "state": state,
-        "redirect_uri": redirectUri,
-      }),
-    );
+  /// Handle OAuth callback from deep link
+  /// Backend handles code exchange automatically and redirects to app's redirect_uri
+  /// Deep link format: myapp://callback?status=success&user_id=xxx
+  /// or: myapp://callback?status=error&error=error_message
+  Future<String?> handleDeepLinkCallback(Uri uri) async {
+    logWarning('🔄 [AUTH] Handling deep link callback (WHOOP)');
+    logWarning('  URI: $uri');
 
-    if (response.statusCode != 200) {
-      throw Exception("OAuth callback failed: ${response.body}");
-    }
+    // Extract status and user_id from deep link
+    final status = uri.queryParameters['status'];
+    final userID = uri.queryParameters['user_id'];
+    final error = uri.queryParameters['error'];
 
-    final json = jsonDecode(response.body);
-    final userId = json['user_id'];
+    logWarning('🔍 [AUTH] Callback parameters:');
+    logWarning('  status: $status');
+    logWarning('  userID: $userID');
+    logWarning('  error: $error');
 
-    if (userId == null) {
-      throw Exception("Missing user_id in callback response");
-    }
+    if (status == 'success' && userID != null) {
+      logWarning('✅ [AUTH] Connection successful, saving userId: $userID');
+      await saveUserId(userID);
+      logWarning('💾 [AUTH] userId saved successfully');
 
-    // Auto-save userId
-    await saveUserId(userId);
+      // Validate data freshness after connection
+      try {
+        logDebug(
+          '🔍 [AUTH] Validating data freshness after WHOOP connection...',
+        );
+        final testData = await _fetch(
+          'recovery',
+          userID,
+          DateTime.now().subtract(const Duration(days: 7)),
+          DateTime.now(),
+          1, // Just fetch 1 record to check freshness
+          null,
+        );
+        _validateDataFreshness(testData, 'WHOOP connection');
+        logDebug('✅ [AUTH] WHOOP connection validated: Data is fresh');
+      } catch (e, stackTrace) {
+        logWarning('⚠️ [AUTH] WHOOP connection data validation failed: $e');
+        logError('⚠️ [AUTH] Validation error details', e, stackTrace);
+        // Don't fail connection if validation fails, just log warning
+      }
 
-    // Validate data freshness after connection
-    try {
-      logWarning('🔍 Validating data freshness after WHOOP connection...');
-      final testData = await _fetch(
-        'recovery',
-        userId,
-        DateTime.now().subtract(const Duration(days: 7)),
-        DateTime.now(),
-        1, // Just fetch 1 record to check freshness
-        null,
+      logWarning(
+        '✅ [AUTH] handleDeepLinkCallback completed successfully, userId: $userID',
       );
-      _validateDataFreshness(testData, 'WHOOP connection');
-      logWarning('✅ WHOOP connection validated: Data is fresh');
-    } catch (e) {
-      logWarning('⚠️ WHOOP connection data validation failed: $e');
-      // Don't fail connection if validation fails, just log warning
+      return userID;
+    } else if (status == 'error' || error != null) {
+      // Connection failed
+      final errorMessage = error ?? 'Unknown error';
+      logError(
+        '❌ [AUTH] OAuth callback failed: $errorMessage',
+        Exception(errorMessage),
+        StackTrace.current,
+      );
+      throw Exception('OAuth callback failed: $errorMessage');
     }
 
-    return userId;
+    logWarning('⚠️ [AUTH] Callback missing status/userID or error');
+    return null;
   }
 
   // 3. Fetch methods – CORRECT PATH + app_id in query
@@ -366,6 +523,165 @@ class WhoopProvider {
     return _convertToWearMetricsList(response, 'whoop', effectiveUserId);
   }
 
+  /// Fetch raw WHOOP data in Flux-expected format (sleep, recovery, cycle)
+  /// Returns a map with 'sleep', 'recovery', and 'cycle' arrays
+  Future<Map<String, dynamic>> fetchRawDataForFlux({
+    String? userId,
+    DateTime? start,
+    DateTime? end,
+    int limit = 50,
+  }) async {
+    final effectiveUserId = userId ?? this.userId;
+    if (effectiveUserId == null) {
+      throw Exception(
+        'userId is required. Either provide it or connect first.',
+      );
+    }
+
+    // Fetch all three data types
+    final sleep = await _fetch(
+      'sleep',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      null,
+    );
+    final recovery = await _fetch(
+      'recovery',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      null,
+    );
+    final cycles = await _fetch(
+      'cycles',
+      effectiveUserId,
+      start,
+      end,
+      limit,
+      null,
+    );
+
+    // Extract arrays from responses
+    // _fetch always returns Map<String, dynamic> from jsonDecode
+    List<dynamic> sleepArray = [];
+    if (sleep.containsKey('data') && sleep['data'] is List) {
+      sleepArray = sleep['data'] as List;
+    } else if (sleep.containsKey('records') && sleep['records'] is List) {
+      sleepArray = sleep['records'] as List;
+    } else if (sleep.containsKey('items') && sleep['items'] is List) {
+      sleepArray = sleep['items'] as List;
+    }
+
+    List<dynamic> recoveryArray = [];
+    if (recovery.containsKey('data') && recovery['data'] is List) {
+      recoveryArray = recovery['data'] as List;
+    } else if (recovery.containsKey('records') && recovery['records'] is List) {
+      recoveryArray = recovery['records'] as List;
+    } else if (recovery.containsKey('items') && recovery['items'] is List) {
+      recoveryArray = recovery['items'] as List;
+    }
+
+    List<dynamic> cycleArray = [];
+    if (cycles.containsKey('data') && cycles['data'] is List) {
+      cycleArray = cycles['data'] as List;
+    } else if (cycles.containsKey('records') && cycles['records'] is List) {
+      cycleArray = cycles['records'] as List;
+    } else if (cycles.containsKey('items') && cycles['items'] is List) {
+      cycleArray = cycles['items'] as List;
+    }
+
+    // Transform data to match Flux expectations:
+    // - Remove UUID string 'id' fields (Flux expects Option<i64> but WHOOP returns UUID strings)
+    // - Ensure stage_summary has all required fields, especially total_sleep_time_milli
+    sleepArray = sleepArray.map((item) {
+      if (item is Map<String, dynamic>) {
+        final transformed = Map<String, dynamic>.from(item);
+        transformed.remove('id'); // Remove UUID string id
+
+        // Fix stage_summary if it exists
+        if (transformed.containsKey('score') &&
+            transformed['score'] is Map<String, dynamic>) {
+          final score = transformed['score'] as Map<String, dynamic>;
+          if (score.containsKey('stage_summary') &&
+              score['stage_summary'] is Map<String, dynamic>) {
+            final stageSummary = score['stage_summary'] as Map<String, dynamic>;
+
+            // Calculate total_sleep_time_milli if missing
+            if (!stageSummary.containsKey('total_sleep_time_milli')) {
+              int totalSleep = 0;
+              if (stageSummary.containsKey('total_light_sleep_time_milli') &&
+                  stageSummary['total_light_sleep_time_milli'] is num) {
+                totalSleep +=
+                    (stageSummary['total_light_sleep_time_milli'] as num)
+                        .toInt();
+              }
+              if (stageSummary.containsKey(
+                    'total_slow_wave_sleep_time_milli',
+                  ) &&
+                  stageSummary['total_slow_wave_sleep_time_milli'] is num) {
+                totalSleep +=
+                    (stageSummary['total_slow_wave_sleep_time_milli'] as num)
+                        .toInt();
+              }
+              if (stageSummary.containsKey('total_rem_sleep_time_milli') &&
+                  stageSummary['total_rem_sleep_time_milli'] is num) {
+                totalSleep +=
+                    (stageSummary['total_rem_sleep_time_milli'] as num).toInt();
+              }
+
+              // If we couldn't calculate it, set to 0 (Flux requires the field to exist)
+              stageSummary['total_sleep_time_milli'] = totalSleep;
+            }
+
+            // Ensure all required fields exist with defaults if missing
+            if (!stageSummary.containsKey('total_in_bed_time_milli')) {
+              stageSummary['total_in_bed_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_awake_time_milli')) {
+              stageSummary['total_awake_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_light_sleep_time_milli')) {
+              stageSummary['total_light_sleep_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_slow_wave_sleep_time_milli')) {
+              stageSummary['total_slow_wave_sleep_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('total_rem_sleep_time_milli')) {
+              stageSummary['total_rem_sleep_time_milli'] = 0;
+            }
+            if (!stageSummary.containsKey('disturbance_count')) {
+              stageSummary['disturbance_count'] = 0;
+            }
+          }
+        }
+
+        return transformed;
+      }
+      return item;
+    }).toList();
+
+    cycleArray = cycleArray.map((item) {
+      if (item is Map<String, dynamic>) {
+        final transformed = Map<String, dynamic>.from(item);
+        transformed.remove('id'); // Remove UUID string id
+        return transformed;
+      }
+      return item;
+    }).toList();
+
+    // Note: cycle_id in recovery might be an integer, so we keep it
+    // If it causes issues, we can remove it too
+
+    return {
+      'sleep': sleepArray,
+      'recovery': recoveryArray,
+      'cycle': cycleArray,
+    };
+  }
+
   Future<Map<String, dynamic>> _fetch(
     String type,
     String userId,
@@ -383,7 +699,7 @@ class WhoopProvider {
     };
 
     final uri = Uri.parse(
-      '$baseUrl/v1/whoop/data/$userId/$type',
+      '$baseUrl/api/v1/whoop/data/$userId/$type',
     ).replace(queryParameters: params);
     logDebug('WHOOP data request URI: $uri');
     final res = await http.get(uri);
@@ -716,9 +1032,40 @@ class WhoopProvider {
   // 4. Disconnect
   Future<void> disconnect(String userId) async {
     final uri = Uri.parse(
-      '$baseUrl/v1/whoop/oauth/disconnect',
+      '$baseUrl/api/v1/whoop/oauth/disconnect',
     ).replace(queryParameters: {'user_id': userId, 'app_id': appId});
     final res = await http.delete(uri);
     if (res.statusCode != 200) throw Exception(res.body);
+  }
+
+  /// Subscribe to real-time events via SSE
+  ///
+  /// Per documentation: GET /api/v1/events/subscribe?app_id={app_id}
+  ///
+  /// Optional parameters:
+  /// - userId: Filter events for specific user
+  /// - vendors: List of vendors to filter (defaults to ['whoop'])
+  ///
+  /// Returns a stream of WearServiceEvent objects.
+  ///
+  /// Example:
+  /// ```dart
+  /// provider.subscribeToEvents(userId: 'user-456')
+  ///   .listen((event) {
+  ///     print('Received ${event.event} event: ${event.data}');
+  ///   });
+  /// ```
+  Stream<WearServiceEvent> subscribeToEvents({
+    String? userId,
+    List<String>? vendors,
+  }) {
+    final subscriptionService = EventSubscriptionService(
+      baseUrl: baseUrl,
+      appId: appId,
+    );
+    return subscriptionService.subscribe(
+      userId: userId ?? this.userId,
+      vendors: vendors ?? ['whoop'],
+    );
   }
 }

@@ -26,3 +26,6 @@ android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 # User-specific
 **/xcuserdata/
 
+# Exclude desktop binaries from pub.dev package (too large, require manual setup anyway)
+# Desktop binaries are optional and need to be manually bundled or set via environment variables
+vendor/flux/desktop/

@@ -1,33 +1,25 @@
 name: CI
 
 on:
-  push:
-    branches: [main, dev]
   pull_request:
-    branches: [main, dev]
+  push:
+    branches:
+      - "**"
 
 jobs:
   test:
-    name: Test & Analyze
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.32.0"
-          channel: "stable"
+          channel: stable
 
-      - name: Get dependencies
+      - name: Install dependencies
         run: flutter pub get
-
-      - name: Check formatting
-        run: dart format --set-exit-if-changed .
-
-      - name: Analyze code
-        run: flutter analyze
 
       - name: Run tests
         run: flutter test

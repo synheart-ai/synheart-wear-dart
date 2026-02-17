@@ -120,4 +120,8 @@ export 'src/normalization/normalizer.dart';
 export 'src/swip/swip_hooks.dart';
 export 'src/sources/whoop_cloud.dart';
 export 'src/sources/garmin_cloud.dart';
+export 'src/sources/event_subscription.dart';
 export 'src/adapters/android_health_helper.dart';
+
+// Flux - HSI-compliant human state signal processing
+export 'src/flux/flux.dart';

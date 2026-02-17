@@ -123,5 +123,11 @@ export 'src/sources/garmin_cloud.dart';
 export 'src/sources/event_subscription.dart';
 export 'src/adapters/android_health_helper.dart';
 
+// Garmin SDK adapter (public facade only)
+export 'src/adapters/garmin/garmin.dart';
+
+// Generic wearable device types
+export 'src/models/wearable_device.dart';
+
 // Flux - HSI-compliant human state signal processing
 export 'src/flux/flux.dart';

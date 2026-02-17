@@ -5,6 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-01-26
+
+### Added
+
+- **Flux Integration** - HSI 1.0 compliant data processing pipeline
+  - Added `readFluxSnapshot()` method to `SynheartWear` for converting vendor data to HSI 1.0 format
+  - Added `fetchRawDataForFlux()` to `WhoopProvider` for fetching and formatting WHOOP data for Flux
+  - Added `fetchRawDataForFlux()` to `GarminProvider` for fetching and formatting Garmin data for Flux
+  - Native Flux binaries automatically bundled for pub.dev users (no setup required)
+  - Support for WHOOP and Garmin data processing into HSI-compliant format
+  - Automatic data transformation (removes UUIDs, ensures required fields, calculates missing values)
+  - HSI output includes sleep, physiology, and activity data organized by daily windows
+- **Base URL Configuration** - Updated default base URL to `https://wear-service-dev.synheart.io` for both WHOOP and Garmin integrations
+  - Automatic migration logic to update stored base URLs from old endpoints
+  - Preserves explicitly provided base URLs while updating defaults
+- **Comprehensive Logging** - Enhanced debugging capabilities across all providers
+  - Added detailed logging to WHOOP OAuth flow (initialization, authorization, connection)
+  - Added detailed logging to Garmin OAuth flow (initialization, authorization, deep link handling)
+  - Improved SSE connection logging with connection status and event details
+- **SSE Reconnection Logic** - Automatic reconnection for Server-Sent Events
+  - Automatic reconnection attempts when SSE connection closes unexpectedly
+  - Improved error handling to distinguish between normal closures and actual errors
+  - Better buffer handling for incomplete SSE events
+  - Heartbeat detection (comment lines starting with `:`) for connection health monitoring
+- **WHOOP Historical Data Methods** - Added methods for fetching historical WHOOP data
+  - `fetchRecovery()` - Fetch recovery data
+  - `fetchSleep()` - Fetch sleep data
+  - `fetchWorkouts()` - Fetch workout data
+  - `fetchCycles()` - Fetch cycle data
+- **Garmin Data Fetching Methods** - Added comprehensive methods for fetching Garmin data
+  - `fetchDailies()` - Daily summary data
+  - `fetchEpochs()` - Epoch-level activity data
+  - `fetchSleeps()` - Sleep data
+  - `fetchStressDetails()` - Stress data
+  - `fetchHRV()` - Heart rate variability data
+  - `fetchUserMetrics()` - User metrics
+  - `fetchBodyComps()` - Body composition data
+  - `fetchPulseOx()` - Pulse oximetry data
+  - `fetchRespiration()` - Respiration data
+  - `fetchHealthSnapshot()` - Health snapshot data
+  - `fetchBloodPressures()` - Blood pressure data
+  - `fetchSkinTemp()` - Skin temperature data
+
+### Changed
+
+- **WHOOP Authentication** - Fixed authentication response validation
+  - Changed from checking string `status` field to boolean `success` field
+  - Improved error message extraction from API responses
+  - Better handling of API response structure
+- **SSE Event Parsing** - Improved SSE event parsing to align with Go and Bash test clients
+  - Only requires `currentData` to process an event (not both `currentEvent` and `currentData`)
+  - Defaults event type to `'message'` if no `event:` field is present
+  - Correctly handles comment lines (heartbeats) by logging them as debug messages
+- **Garmin OAuth Flow** - Enhanced OAuth callback handling
+  - Improved deep link callback processing
+  - Better state management for OAuth flow
+  - Fallback mechanism to check connection status periodically
+  - Removed manual callback forwarding (backend handles callbacks directly)
+
+### Fixed
+
+- **WHOOP Base URL Migration** - Fixed issue where old base URL was being loaded from storage
+  - Automatic migration from `synheart-wear-service-leatest.onrender.com` to new default
+  - Ensures new default base URL is used even when old URL is stored locally
+- **SSE Connection Stability** - Fixed SSE connection closing unexpectedly
+  - Added reconnection mechanism with configurable delay
+  - Improved error handling for connection failures
+  - Better distinction between normal closures and errors
+
+### Documentation
+
+- Added detailed OAuth callback issue documentation for backend developers
+- Improved logging documentation for debugging OAuth flows
+
 ## [0.2.3] - 2026-01-02
 
 ### Changed
@@ -178,3 +252,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.1]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.1
 [0.2.2]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.2
 [0.2.3]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.3
+[0.2.4]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.4

@@ -15,7 +15,7 @@ Synheart Wear iOS plugin for optional HealthKit heartbeat series (RR) integratio
 
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
-  s.platform = :ios, '13.0'
+  s.platform = :ios, '16.0'
   s.swift_version = '5.0'
   s.static_framework = true
 

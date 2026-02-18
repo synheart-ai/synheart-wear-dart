@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-17
+
+### Added
+
+- **Garmin Health SDK Integration** - Native device pairing, scanning, and real-time streaming
+  - Added `GarminHealth` facade for native Garmin device integration (scan, pair, stream)
+  - Supports Companion SDK (direct Bluetooth) and Standard SDK (via Garmin Connect Mobile)
+  - Real-time biometric data streaming from Garmin wearables
+  - See `GARMIN_SETUP.md` for setup instructions
+- **BLE Heart Rate Monitor Support** - Direct BLE sensor access
+  - Added BLE HRM bridge and models for generic Bluetooth heart rate sensors
+  - Platform-native BLE scanning and connection
+- **Wearable Device Models** - Generic wearable device types
+  - Added `ScannedDevice`, `PairedDevice`, `DeviceConnectionState`, `DeviceConnectionEvent`
+  - Unified device model across all adapter types
+
+### Changed
+
+- **Flux FFI** - Improved native library loading with symbol validation and graceful degradation
+  - Added `_requiredSymbols` validation to prevent binding against incompatible libraries
+  - Methods return `null` instead of throwing on failure for graceful degradation
+  - Refactored library loading to use candidate path list pattern
+  - Safer dispose with try-catch around native free calls
+- **Podspec** - Updated iOS minimum to 16.0, added Flux XCFramework conditional bundling
+
 ## [0.2.3] - 2026-01-26
 
 ### Added
@@ -244,3 +269,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.1]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.1
 [0.2.2]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.2
 [0.2.3]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.2.3
+[0.3.0]: https://github.com/synheart-ai/synheart_wear/releases/tag/v0.3.0

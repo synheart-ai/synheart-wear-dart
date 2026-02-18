@@ -1,6 +1,6 @@
 # Synheart Wear
 
-[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](https://github.com/synheart-ai/synheart_wear)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/synheart-ai/synheart_wear)
 [![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.22.0-blue.svg)](https://flutter.dev)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
@@ -23,7 +23,7 @@
 
 ```yaml
 dependencies:
-  synheart_wear: ^0.2.3
+  synheart_wear: ^0.3.0
 ```
 
 ```bash
@@ -272,7 +272,7 @@ Flux is implemented in **Rust** and called via Dart **FFI**. To activate Flux, y
 
 ```yaml
 dependencies:
-  synheart_wear: ^0.2.3
+  synheart_wear: ^0.3.0
 ```
 
 ```dart

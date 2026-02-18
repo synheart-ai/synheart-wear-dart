@@ -13,6 +13,9 @@ public class SynheartWearPlugin: NSObject, FlutterPlugin {
 
     // Register Garmin SDK bridge
     GarminSDKBridge.register(with: registrar)
+
+    // Register BLE HRM handler
+    BleHrmHandler.register(with: registrar)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

@@ -129,5 +129,9 @@ export 'src/adapters/garmin/garmin.dart';
 // Generic wearable device types
 export 'src/models/wearable_device.dart';
 
+// BLE Heart Rate Monitor
+export 'src/adapters/ble_hrm_models.dart';
+export 'src/adapters/ble_hrm_bridge.dart';
+
 // Flux - HSI-compliant human state signal processing
 export 'src/flux/flux.dart';

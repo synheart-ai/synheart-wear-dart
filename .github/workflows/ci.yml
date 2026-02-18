@@ -20,9 +20,16 @@ jobs:
           - "stable"
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter (pinned)
+        if: matrix.flutter != 'stable'
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ matrix.flutter }}
+          channel: stable
+      - name: Setup Flutter (stable channel)
+        if: matrix.flutter == 'stable'
+        uses: subosito/flutter-action@v2
+        with:
           channel: stable
       - run: flutter pub get
       - run: flutter analyze

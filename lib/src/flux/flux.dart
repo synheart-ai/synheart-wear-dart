@@ -123,6 +123,7 @@ export 'types.dart'
         HsiPhysiology,
         HsiActivity,
         HsiBaseline,
+        // ignore: deprecated_member_use_from_same_package
         HsiDailyWindow;
 
 // FFI bindings (for advanced use)

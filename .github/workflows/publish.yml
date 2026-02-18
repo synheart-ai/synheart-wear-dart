@@ -18,6 +18,8 @@ jobs:
         with:
           flutter-version: "3.32.0"
           channel: "stable"
+      # Required for pub.dev trusted publishing (OIDC)
+      - uses: dart-lang/setup-dart@v1
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test

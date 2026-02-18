@@ -17,10 +17,12 @@ and optional Garmin Companion SDK integration.
   s.swift_version = '5.10'
   s.static_framework = true
 
-  # Optional: bundle the native Rust Flux engine if the XCFramework is present.
+  # Optional: bundle the native Rust Flux engine if the XCFramework is present
+  # AND no sibling plugin (synheart_behavior) already vendors the same binary.
   flux_xcframework_path = '../vendor/flux/ios/SynheartFlux.xcframework'
   flux_xcframework_absolute = File.expand_path(flux_xcframework_path, __dir__)
-  if File.exist?(flux_xcframework_absolute)
+  behavior_podspec = File.expand_path('../../synheart-behavior-dart/ios/synheart_behavior.podspec', __dir__)
+  if File.exist?(flux_xcframework_absolute) && !File.exist?(behavior_podspec)
     s.vendored_frameworks = flux_xcframework_path
   end
 

@@ -22,6 +22,9 @@ class SynheartWearPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
         // Register Garmin SDK bridge
         GarminSDKBridge.registerWith(flutterPluginBinding)
+
+        // Register BLE HRM handler
+        BleHrmHandler.registerWith(flutterPluginBinding)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {

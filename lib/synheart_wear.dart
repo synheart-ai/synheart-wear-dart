@@ -133,5 +133,3 @@ export 'src/models/wearable_device.dart';
 export 'src/adapters/ble_hrm_models.dart';
 export 'src/adapters/ble_hrm_bridge.dart';
 
-// Flux - HSI-compliant human state signal processing
-export 'src/flux/flux.dart';

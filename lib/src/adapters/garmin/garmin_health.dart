@@ -45,6 +45,7 @@ class GarminHealth {
   /// Must be called before any other operations.
   /// Throws [UnsupportedError] — RTS requires the companion SDK.
   Future<void> initialize() async {
+    assert(_licenseKey.isNotEmpty, 'licenseKey must not be empty');
     _isInitialized = true;
   }
 

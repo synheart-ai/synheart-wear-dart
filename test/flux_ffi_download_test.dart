@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:synheart_wear/synheart_wear.dart';
-import 'package:synheart_wear/src/flux/ffi/flux_ffi.dart';
 
 bool _isEnabled() => Platform.environment['FLUX_FFI_DOWNLOAD_TEST'] == '1';
 

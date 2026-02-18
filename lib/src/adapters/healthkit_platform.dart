@@ -27,11 +27,9 @@ class HealthKitPlatform {
   static Future<double?> getCurrentHeartRate() async {
     if (!Platform.isIOS) return null;
 
-    final dataPoints = await HealthAdapter.readHealthData({
+    final metrics = await HealthAdapter.readMetrics({
       PermissionType.heartRate,
     });
-
-    final metrics = HealthAdapter.convertToWearMetrics(dataPoints);
     return metrics?.getMetric(MetricType.hr)?.toDouble();
   }
 
@@ -39,11 +37,9 @@ class HealthKitPlatform {
   static Future<double?> getCurrentHRV() async {
     if (!Platform.isIOS) return null;
 
-    final dataPoints = await HealthAdapter.readHealthData({
+    final metrics = await HealthAdapter.readMetrics({
       PermissionType.heartRateVariability,
     });
-
-    final metrics = HealthAdapter.convertToWearMetrics(dataPoints);
     return metrics?.getMetric(MetricType.hrvSdnn)?.toDouble();
   }
 

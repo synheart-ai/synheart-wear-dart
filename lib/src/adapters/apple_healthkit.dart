@@ -84,17 +84,12 @@ class AppleHealthKitAdapter implements WearAdapter {
           startTime ?? DateTime.now().subtract(const Duration(days: 30));
       final effectiveEndTime = endTime ?? DateTime.now();
 
-      // Read data using health package
+      // Read data and convert to WearMetrics in one step
       // Use platform-specific permissions (exclude HRV on Android)
-      final dataPoints = await HealthAdapter.readHealthData(
+      final metrics = await HealthAdapter.readMetrics(
         _platformSupportedPermissions,
         startTime: effectiveStartTime,
         endTime: effectiveEndTime,
-      );
-
-      // Convert to WearMetrics
-      final metrics = HealthAdapter.convertToWearMetrics(
-        dataPoints,
         deviceId: 'applewatch_${DateTime.now().millisecondsSinceEpoch}',
         source: id,
       );

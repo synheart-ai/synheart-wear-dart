@@ -7,6 +7,7 @@ import 'models.dart';
 import '../normalization/normalizer.dart';
 import '../adapters/apple_healthkit.dart';
 import '../adapters/fitbit.dart';
+import '../adapters/garmin/garmin_health.dart';
 import 'config.dart';
 import 'consent_manager.dart';
 import 'local_cache.dart';
@@ -32,17 +33,31 @@ class SynheartWear {
   /// Flux processor for HSI signal processing (lazy initialized)
   FluxProcessor? _fluxProcessor;
 
+  GarminHealth? _garminHealth;
+
   SynheartWear({
     SynheartWearConfig? config,
     Map<DeviceAdapter, WearAdapter>? adapters,
+    GarminHealth? garminHealth,
   }) : config = config ?? const SynheartWearConfig(),
        _normalizer = Normalizer(),
+       _garminHealth = garminHealth,
        _adapterRegistry =
            adapters ??
            {
              DeviceAdapter.appleHealthKit: AppleHealthKitAdapter(),
              DeviceAdapter.fitbit: FitbitAdapter(),
-           };
+           } {
+    // Register GarminHealth adapter if provided
+    if (_garminHealth != null) {
+      _adapterRegistry[DeviceAdapter.garmin] = _garminHealth!.adapter;
+    }
+  }
+
+  /// Access the Garmin Health facade for device-specific operations
+  ///
+  /// Returns null if GarminHealth was not configured.
+  GarminHealth? get garminHealth => _garminHealth;
 
   /// Initialize the SDK with permissions and setup
   ///
@@ -479,6 +494,7 @@ class SynheartWear {
     _fluxTimer?.cancel();
     _hrStreamController?.close();
     _hrvStreamController?.close();
+    _garminHealth?.dispose();
     _fluxStreamController?.close();
     _fluxProcessor = null;
     _initialized = false;

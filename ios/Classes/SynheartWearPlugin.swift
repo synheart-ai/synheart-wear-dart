@@ -6,9 +6,16 @@ public class SynheartWearPlugin: NSObject, FlutterPlugin {
   private let healthStore = HKHealthStore()
 
   public static func register(with registrar: FlutterPluginRegistrar) {
+    // Register HealthKit RR channel
     let channel = FlutterMethodChannel(name: "synheart_wear/healthkit_rr", binaryMessenger: registrar.messenger())
     let instance = SynheartWearPlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
+
+    // Register Garmin SDK bridge
+    GarminSDKBridge.register(with: registrar)
+
+    // Register BLE HRM handler
+    BleHrmHandler.register(with: registrar)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

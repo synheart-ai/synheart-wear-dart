@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:fixnum/fixnum.dart';
 import 'package:grpc/grpc.dart';
+import 'generated/google_protobuf_timestamp.pb.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'generated/ramen.pbgrpc.dart';
@@ -89,8 +90,7 @@ class RamenClient {
   ClientChannel? _channel;
   RamenServiceClient? _client;
   StreamSubscription<ServerMessage>? _subscription;
-  final StreamController<ClientMessage> _requestController =
-      StreamController<ClientMessage>.broadcast();
+  StreamController<ClientMessage>? _requestController;
   final StreamController<RamenEvent> _eventController =
       StreamController<RamenEvent>.broadcast();
   final StreamController<RamenConnectionState> _stateController =
@@ -130,34 +130,43 @@ class RamenClient {
   void _emitConnectedIfFirst() {
     if (!_hasEmittedConnected && !_closed) {
       _hasEmittedConnected = true;
+      _backoffSeconds = 1; // reset backoff after successful connection
       _stateController.add(RamenConnectionState.connected);
     }
   }
 
   /// Start the subscription loop. Sends SubscribeRequest with
   /// last_acknowledged_seq (from local storage, or 0 if first time), device_id,
-  /// user_id; X-app-id and X-api-key are sent via [ _callOptions] on the connection.
+  /// user_id, app_id; X-app-id and X-api-key are sent via [_callOptions] on the connection.
   /// On each Event, sends Ack(seq) and saves seq to local storage.
-  /// Every 30s sends Heartbeat(timestamp=now()); if HeartbeatAck not received
+  /// Every 30s sends Heartbeat(timestamp=Timestamp.fromDateTime(utc)); if HeartbeatAck not received
   /// after 2 attempts, force-closes and reconnects.
   Future<void> connect() async {
     if (_closed) return;
     _hasEmittedConnected = false;
     _stateController.add(RamenConnectionState.connecting);
+
+    // Cleanup previous connection: cancel subscription and close previous request stream
+    await _subscription?.cancel();
+    await _requestController?.close();
+    _requestController = StreamController<ClientMessage>(); // single-subscription, not broadcast
+
     _channel = useTls
         ? ClientChannel(host, port: port, options: const ChannelOptions(credentials: ChannelCredentials.secure()))
         : ClientChannel(host, port: port);
     _client = RamenServiceClient(_channel!);
 
     final lastAckSeq = await lastSeq;
-    final subscribe = ClientMessage()..subscribe = (SubscribeRequest()
-      ..lastSeq = lastAckSeq
-      ..deviceId = deviceId
-      ..userId = userId);
+    final subscribe = ClientMessage()
+      ..subscribe = (SubscribeRequest()
+        ..appId = appId
+        ..lastSeq = lastAckSeq
+        ..deviceId = deviceId
+        ..userId = userId);
     // One SubscribeRequest per connection, then only Ack/Heartbeat on _requestController
     Stream<ClientMessage> buildRequestStream() async* {
       yield subscribe;
-      yield* _requestController.stream;
+      yield* _requestController!.stream;
     }
 
     final responseStream = _client!.subscribe(
@@ -207,8 +216,7 @@ class RamenClient {
   }
 
   void _sendAck(Int64 seq) {
-    final ack = ClientMessage()..ack = (Ack()..seq = seq);
-    _requestController.add(ack);
+    _requestController?.add(ClientMessage()..ack = (Ack()..seq = seq));
   }
 
   /// Save seq to local storage for last_acknowledged_seq on next connection.
@@ -229,8 +237,10 @@ class RamenClient {
         _scheduleReconnect();
         return;
       }
-      final hb = ClientMessage()..heartbeat = (Heartbeat()..timestamp = Int64(DateTime.now().millisecondsSinceEpoch));
-      _requestController.add(hb);
+      final hb = ClientMessage()
+        ..heartbeat = (Heartbeat()
+          ..timestamp = Timestamp.fromDateTime(DateTime.now().toUtc()));
+      _requestController?.add(hb);
     });
   }
 
@@ -242,10 +252,11 @@ class RamenClient {
   void _scheduleReconnect() {
     if (_closed) return;
     _stateController.add(RamenConnectionState.reconnecting);
-    Future.delayed(Duration(seconds: _backoffSeconds), () async {
+    final delay = _backoffSeconds;
+    _backoffSeconds = _backoffSeconds > 32 ? 32 : _backoffSeconds * 2;
+    Future.delayed(Duration(seconds: delay), () async {
       if (_closed) return;
       await _channel?.shutdown();
-      _backoffSeconds = _backoffSeconds > 32 ? 32 : _backoffSeconds * 2;
       await connect();
     });
   }
@@ -255,7 +266,8 @@ class RamenClient {
     _closed = true;
     _stopHeartbeatTimer();
     await _subscription?.cancel();
-    await _requestController.close();
+    await _requestController?.close();
+    _requestController = null;
     await _channel?.shutdown();
     await _eventController.close();
     await _stateController.close();

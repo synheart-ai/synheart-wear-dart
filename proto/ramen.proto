@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package ramen;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "ai.synheart.ramen";
 option java_multiple_files = true;
 
@@ -10,6 +12,7 @@ message SubscribeRequest {
   int64 last_seq = 1;   // last_acknowledged_seq from local storage; 0 if first time
   string device_id = 2; // unique hardware ID (IDFV on iOS, Android ID)
   string user_id = 3;   // user identifier (in addition to X-app-id and X-api-key headers)
+  string app_id = 4;    // required; server validates; also sent as x-app-id header
 }
 
 message Ack {
@@ -17,7 +20,7 @@ message Ack {
 }
 
 message Heartbeat {
-  int64 timestamp = 1; // client time (ms)
+  google.protobuf.Timestamp timestamp = 1; // client time for RTT calculation
 }
 
 message ClientMessage {

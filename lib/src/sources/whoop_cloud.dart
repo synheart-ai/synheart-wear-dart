@@ -20,7 +20,7 @@ class WhoopProvider {
   static const String _redirectUriKey = 'sdk_redirect_uri';
 
   // Default values
-  static const String defaultBaseUrl = 'https://wear-service-test.synheart.io';
+  static const String defaultBaseUrl = 'https://wear-service-dev.synheart.io';
   static const String defaultRedirectUri = 'synheart://oauth/callback';
 
   String baseUrl;

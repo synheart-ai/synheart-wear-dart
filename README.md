@@ -625,6 +625,15 @@ try {
 
 ---
 
+## ⌚ Real-Time Watch Data
+
+Due to HealthKit (iOS) and Health Connect (Android) API limitations, real-time biometric streaming (HR, HRV, accelerometer) requires an active workout/exercise session on the watch. For real-time session-based data, use the Synheart watch companion apps alongside the [Synheart Session SDK](https://github.com/synheart-ai/synheart-session):
+
+- [synheart-wear-watch-ios](https://github.com/synheart-ai/synheart-wear-watch-ios) — watchOS companion (HKWorkoutSession)
+- [synheart-wear-watch-android](https://github.com/synheart-ai/synheart-wear-watch-android) — Wear OS companion (Health Services)
+
+This SDK handles non-realtime and historical data (daily HR, HRV, steps, sleep, etc.) which does not require a workout session.
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) or:

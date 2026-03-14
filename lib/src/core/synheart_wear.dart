@@ -69,13 +69,8 @@ class SynheartWear {
     }
 
     try {
-      // Request necessary permissions
-
+      // Request necessary permissions (single call — handles all types)
       await _requestPermissions();
-
-      // Initialize adapters
-
-      await _initializeAdapters();
 
       final testData = <WearMetrics?>[];
       for (final adapter in _enabledAdapters()) {
@@ -296,9 +291,13 @@ class SynheartWear {
   /// Dispose resources
   void dispose() {
     _streamTimer?.cancel();
+    _streamTimer = null;
     _hrvTimer?.cancel();
+    _hrvTimer = null;
     _hrStreamController?.close();
+    _hrStreamController = null;
     _hrvStreamController?.close();
+    _hrvStreamController = null;
     _garminHealth?.dispose();
     _initialized = false;
   }
@@ -328,13 +327,6 @@ class SynheartWear {
         .toList();
   }
 
-  /// Initialize enabled adapters
-  Future<void> _initializeAdapters() async {
-    for (final adapter in _enabledAdapters()) {
-      await adapter.ensurePermissions();
-    }
-  }
-
   /// Start the streaming timer
   void _startStreaming(Duration interval) {
     _streamTimer?.cancel();
@@ -346,11 +338,18 @@ class SynheartWear {
         return;
       }
 
+      final controller = _hrStreamController;
+      if (controller == null || controller.isClosed) {
+        _streamTimer?.cancel();
+        _streamTimer = null;
+        return;
+      }
+
       try {
         final metrics = await readMetrics(isRealTime: true);
-        _hrStreamController?.add(metrics);
+        if (!controller.isClosed) controller.add(metrics);
       } catch (e) {
-        _hrStreamController?.addError(e);
+        if (!controller.isClosed) controller.addError(e);
       }
     });
   }
@@ -359,8 +358,15 @@ class SynheartWear {
   void _startHrvStreaming(Duration windowSize) {
     _hrvTimer?.cancel();
     _hrvTimer = Timer.periodic(windowSize, (timer) async {
+      final controller = _hrvStreamController;
+      if (controller == null || controller.isClosed) {
+        _hrvTimer?.cancel();
+        _hrvTimer = null;
+        return;
+      }
+
       // Check if we still have subscribers
-      if (_hrvStreamController?.hasListener != true) {
+      if (!controller.hasListener) {
         _hrvTimer?.cancel();
         _hrvTimer = null;
         return;
@@ -374,10 +380,10 @@ class SynheartWear {
 
         // Emit metrics if any HRV data is present
         if (hrvSdnn != null || hrvRmssd != null) {
-          _hrvStreamController?.add(metrics);
+          if (!controller.isClosed) controller.add(metrics);
         }
       } catch (e) {
-        _hrvStreamController?.addError(e);
+        if (!controller.isClosed) controller.addError(e);
       }
     });
   }

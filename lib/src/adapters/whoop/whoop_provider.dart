@@ -1083,9 +1083,7 @@ class WhoopProvider {
         '(likely timezone) - treating as valid',
       );
     } else {
-      logDebug(
-        '$context: data is fresh (${absoluteAge.inHours}h old)',
-      );
+      logDebug('$context: data is fresh (${absoluteAge.inHours}h old)');
     }
   }
 

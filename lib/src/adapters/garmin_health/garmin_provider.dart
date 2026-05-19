@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -472,11 +471,7 @@ class GarminProvider {
       logDebug('[DATA] Garmin fetch ok: type=$summaryType');
       return data;
     } catch (e, stackTrace) {
-      logError(
-        '[DATA] Garmin fetch error: type=$summaryType',
-        e,
-        stackTrace,
-      );
+      logError('[DATA] Garmin fetch error: type=$summaryType', e, stackTrace);
       rethrow;
     }
   }
@@ -811,9 +806,7 @@ class GarminProvider {
         '(likely timezone) - treating as valid',
       );
     } else {
-      logDebug(
-        '$context: data is fresh (${absoluteAge.inHours}h old)',
-      );
+      logDebug('$context: data is fresh (${absoluteAge.inHours}h old)');
     }
   }
 

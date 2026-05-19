@@ -200,7 +200,9 @@ class OuraProvider {
     final result = await initiateOAuthConnection(userId: userId);
     final authUrl = result['auth_url'];
     if (authUrl == null || authUrl.isEmpty) {
-      throw StateError('OuraProvider: Synheart Wear API returned empty auth_url');
+      throw StateError(
+        'OuraProvider: Synheart Wear API returned empty auth_url',
+      );
     }
     final launched = await launchUrl(
       Uri.parse(authUrl),
